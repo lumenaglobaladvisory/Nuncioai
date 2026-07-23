@@ -65,6 +65,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
   providers,
   pages: { signIn: "/login" },
+  // Vercel (and most PaaS platforms) sit behind a reverse proxy, so the
+  // incoming Host header isn't inherently trustworthy from Auth.js's
+  // perspective - this must be explicitly opted into in production.
+  // https://errors.authjs.dev#untrustedhost
+  trustHost: true,
   callbacks: {
     async jwt({ token, user }) {
       if (user) token.sub = user.id;

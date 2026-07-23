@@ -6,7 +6,7 @@ An AI email operations agent for busy client-facing professionals. InboxPilot tr
 
 - **Next.js 15** (App Router, TypeScript) + Tailwind CSS
 - **Auth.js (NextAuth v5)** with Google and Microsoft Entra ID OAuth, plus a built-in demo sign-in
-- **Prisma + SQLite** for local/dev persistence (swap `DATABASE_URL` for Postgres in production)
+- **Prisma + Postgres** for persistence (Vercel Postgres/Neon/Supabase/local Postgres all work — see below)
 - **Anthropic Claude API** for triage/summarization/drafting, with a deterministic rule-based fallback when no API key is set
 - **Gmail API** and **Microsoft Graph** provider adapters, behind a single provider-agnostic interface, plus a "mock" provider backed by seeded local data
 
@@ -21,18 +21,29 @@ An AI email operations agent for busy client-facing professionals. InboxPilot tr
 
 ## Getting started
 
+You need a Postgres database first — a local instance, or a free one from Vercel Postgres/Neon/Supabase.
+
 ```bash
 npm install
-cp .env.example .env        # fill in real values as you get them; SQLite + demo login work out of the box
-npx prisma migrate dev      # creates prisma/dev.db
+cp .env.example .env        # set DATABASE_URL to your Postgres instance; demo login works with no other config
+npx prisma migrate dev      # applies the schema
 npm run db:seed             # seeds a demo user + 8 sample email threads
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), click **Continue as Demo Account**, then **Sync inbox** to triage the seeded threads. This works with zero external credentials — no Google/Microsoft OAuth app and no Anthropic API key required — because:
+Open [http://localhost:3000](http://localhost:3000), click **Continue as Demo Account**, then **Sync inbox** to triage the seeded threads. Beyond the database, this works with zero external credentials — no Google/Microsoft OAuth app and no Anthropic API key required — because:
 
 - The demo account's mailbox uses the **mock** email/calendar provider, which reads/writes the seeded `EmailThread`/`EmailMessage` rows directly instead of calling a real API.
 - Without `ANTHROPIC_API_KEY` set, triage/summarization/drafting/extraction fall back to `lib/llm/stub.ts`, a deterministic rule-based implementation. The dashboard shows a "rule-based (no API key)" badge in this mode.
+
+### Deploying to Vercel
+
+1. Add a Postgres database from the Vercel dashboard's **Storage** tab (or connect an existing Neon/Supabase instance) — this sets `DATABASE_URL` automatically.
+2. Set `AUTH_SECRET` (`npx auth secret` to generate one) in the project's environment variables. Without it, sign-in fails with Auth.js's generic "There was a problem with the server configuration" error.
+3. Deploy. `npm run build` runs `prisma generate && prisma migrate deploy && next build`, so the schema is applied automatically on every deploy.
+4. Sign in with **Continue as Demo Account** to confirm it's working, then run `npm run db:seed` locally against the production `DATABASE_URL` if you want the demo data there too.
+
+`auth.ts` sets `trustHost: true`, which is required for Auth.js to work behind Vercel's (or any) reverse proxy — omitting it produces the same generic "server configuration" error regardless of how the database is set up.
 
 ### Connecting real accounts
 
@@ -43,7 +54,7 @@ Fill in `.env` (see `.env.example` for exact scopes/permissions needed):
 - `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` — switches triage/drafting from the rule-based stub to Claude.
 - `CRON_SECRET` — bearer secret required by `POST /api/cron/policies`, meant to be hit by an external scheduler (Vercel Cron, GitHub Actions, etc.) to evaluate all users' policies on an interval.
 
-> These integration paths (Gmail API, Microsoft Graph, live Claude calls) are implemented but were not exercised end-to-end in the environment this was built in, since no live credentials were available there — only the stub/mock path was verified in-browser. Connect real credentials and smoke-test sync + send/draft/archive before relying on it in production.
+> Gmail API, Microsoft Graph, and live Claude calls are implemented but not exercised end-to-end in this build's own testing (no live credentials were available). The full app — auth, Postgres, sync, drafting, plan approve/execute/undo, and policies — was verified end-to-end in-browser against the stub LLM/mock-provider path, including a production build (`next build && next start`) against a real Postgres instance. Connect real credentials and smoke-test sync + send/draft/archive before relying on those specific integrations in production.
 
 ## Safety model
 
