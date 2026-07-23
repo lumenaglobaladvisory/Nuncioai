@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth.js (NextAuth v5) core models ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  tonePreference String? // e.g. "concise, professional, friendly"
+
+  accounts          Account[]
+  sessions          Session[]
+  connectedAccounts ConnectedAccount[]
+  plans             Plan[]
+  policies          Policy[]
+  tasks             Task[]
+  events            CalendarEvent[]
+  memories          MemoryEntry[]
+
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- InboxPilot domain models ----------
+
+// A mailbox InboxPilot syncs and acts on. Distinct from Account (which is
+// used for app login) because a user may log in with Google but connect
+// both a Gmail and an Outlook mailbox for triage.
+model ConnectedAccount {
+  id           String    @id @default(cuid())
+  userId       String
+  provider     String // "google" | "microsoft" | "mock"
+  email        String
+  displayName  String?
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threads EmailThread[]
+
+  @@unique([userId, provider, email])
+}
+
+model EmailThread {
+  id                 String   @id @default(cuid())
+  connectedAccountId String
+  providerThreadId   String
+  subject            String
+  participants       String // JSON: [{name, email}]
+  snippet            String?
+  lastMessageAt      DateTime
+
+  category         String? // must_respond | needs_review | low_value | notification | newsletter | reference
+  priority         String? // high | medium | low
+  priorityReasons  String? // JSON string[]
+  deadline         DateTime?
+  requestedActions String? // JSON string[]
+
+  blufSummary  String?
+  decisions    String? // JSON string[]
+  openQuestions String? // JSON string[]
+  actionItems  String? // JSON [{owner, action, dueDate}]
+  summarizedAt DateTime?
+
+  isArchived    Boolean   @default(false)
+  labels        String? // JSON string[]
+  snoozedUntil  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+  messages         EmailMessage[]
+  drafts           Draft[]
+  planActions      PlanAction[]
+  tasks            Task[]
+  events           CalendarEvent[]
+
+  @@unique([connectedAccountId, providerThreadId])
+}
+
+model EmailMessage {
+  id                String   @id @default(cuid())
+  threadId          String
+  providerMessageId String
+  fromName          String?
+  fromEmail         String
+  toEmails          String // JSON string[]
+  ccEmails          String? // JSON string[]
+  subject           String
+  bodyText          String
+  bodyHtml          String?
+  sentAt            DateTime
+  direction         String // "inbound" | "outbound"
+  createdAt         DateTime @default(now())
+
+  thread EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+}
+
+model Draft {
+  id        String   @id @default(cuid())
+  threadId  String
+  subject   String
+  bodyText  String
+  tone      String?
+  status    String   @default("draft") // draft | sent | discarded
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+}
+
+// A batch of AI-proposed actions awaiting user approval. Nothing in
+// `actions` executes until the Plan (or an individual action) is approved.
+model Plan {
+  id             String    @id @default(cuid())
+  userId         String
+  kind           String // triage_bulk | draft_reply | policy_followup | task_extraction | bulk_archive | ...
+  summary        String
+  planJson       String // raw PLAN_JSON payload, shown in the UI's debug view
+  status         String    @default("pending") // pending | approved | executed | undone | rejected
+  riskLevel      String    @default("low") // low | medium | high
+  sourcePolicyId String?
+  createdAt      DateTime  @default(now())
+  executedAt     DateTime?
+  undoneAt       DateTime?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourcePolicy Policy?      @relation(fields: [sourcePolicyId], references: [id])
+  actions      PlanAction[]
+}
+
+model PlanAction {
+  id            String    @id @default(cuid())
+  planId        String
+  tool          String // send_email | save_draft | archive_emails | label_emails | snooze_emails | create_task | create_event
+  threadId      String?
+  payload       String // JSON args for the tool call
+  previousState String? // JSON snapshot captured at execution time, used for undo
+  riskLevel     String    @default("low")
+  reversible    Boolean   @default(true)
+  status        String    @default("pending") // pending | approved | skipped | executed | undone | failed
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  executedAt    DateTime?
+
+  plan   Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  thread EmailThread? @relation(fields: [threadId], references: [id])
+}
+
+model Policy {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  triggerType String // no_reply | before_meeting | schedule | label_added
+  timeDelay   String? // "3d", "24h"
+  scope       String? // e.g. "emails_labeled:proposals"
+  action      String // draft_followup | summarize_and_archive | send_reminder
+  tone        String? // polite_firm | warm | firm | neutral
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plans Plan[]
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  userId      String
+  threadId    String?
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    String    @default("medium") // high | medium | low
+  status      String    @default("open") // open | done | dismissed
+  createdAt   DateTime  @default(now())
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread EmailThread? @relation(fields: [threadId], references: [id])
+}
+
+model CalendarEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  threadId        String?
+  title           String
+  description     String?
+  startTime       DateTime
+  endTime         DateTime
+  location        String?
+  attendees       String? // JSON string[]
+  providerEventId String?
+  status          String   @default("proposed") // proposed | created
+  createdAt       DateTime @default(now())
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread EmailThread? @relation(fields: [threadId], references: [id])
+}
+
+model MemoryEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  scope     String // global | recipient | client
+  key       String // e.g. recipient email, or "tone_preference"
+  data      String // JSON blob
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scope, key])
+}
