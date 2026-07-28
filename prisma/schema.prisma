@@ -3,8 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Migrations need a direct (unpooled) connection - Neon's pooled connection
+  // (used for DATABASE_URL / normal query traffic) can't reliably hold the
+  // advisory lock `prisma migrate deploy` takes, which causes builds to hang
+  // and fail with P1002 ("timed out trying to acquire a postgres advisory
+  // lock"). See https://pris.ly/d/migrate-advisory-locking.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ---------- Auth.js (NextAuth v5) core models ----------
