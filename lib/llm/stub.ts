@@ -25,8 +25,12 @@ const BODY_NOISE_RE = /unsubscribe|view in browser|manage (your )?(email )?prefe
 const URGENT_RE = /\burgent\b|\basap\b|\bdeadline\b|\beod\b|end of day|right away|by (today|tomorrow|tonight|end of week|eow)\b|time.?sensitive|immediately/i;
 // Direct, specific asks - phrases a person uses when they actually want
 // something from the recipient, as opposed to a generic sentence containing "?".
+// "please [verb]" is deliberately a whitelist of actionable verbs, not any
+// verb - "please visit our site" / "please see below" are generic marketing
+// and boilerplate CTAs, not a personal ask, and would otherwise false-positive
+// constantly on newsletters and security-tips mail.
 const DIRECT_ASK_RE =
-  /\b(could you|can you|would you|please [a-z]+|let me know|need (your|you to)|requires? your|waiting on you|your (approval|input|sign-?off|feedback|thoughts)|confirm|approve)\b/i;
+  /\b(could you|can you|would you|please (review|confirm|approve|sign|send|provide|complete|submit|respond|reply|call|schedule|forward|share|upload|finalize|advise|check|fill out|get back)|let me know|need (your|you to)|requires? your|waiting on you|your (approval|input|sign-?off|feedback|thoughts)|confirm|approve)\b/i;
 const ASK_RE = /\bplease\b|\bcould you\b|\bcan you\b|\blet me know\b|\bconfirm\b|\breview\b|\bapprove\b|\?\s*$/im;
 
 function isNoise(msg: ProviderMessage): boolean {

@@ -1,5 +1,6 @@
 import { google, gmail_v1 } from "googleapis";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { looksLikeMarkup, stripHtml } from "./html";
 import type {
   CalendarProvider,
   CreateEventPayload,
@@ -23,19 +24,35 @@ function oauthClient(tokens: GoogleTokens) {
   return client;
 }
 
+function collectBodyParts(part: gmail_v1.Schema$MessagePart, acc: { text?: string; html?: string }): void {
+  const data = part.body?.data;
+  if (data && part.mimeType === "text/plain" && acc.text === undefined) {
+    acc.text = Buffer.from(data, "base64url").toString("utf-8");
+  } else if (data && part.mimeType === "text/html" && acc.html === undefined) {
+    acc.html = Buffer.from(data, "base64url").toString("utf-8");
+  }
+  // Multipart messages nest their real text/plain and text/html leaves
+  // under container parts (multipart/alternative, multipart/related, ...),
+  // sometimes more than one level deep - walk the whole tree rather than
+  // assuming they're direct children of the top-level payload.
+  for (const child of part.parts ?? []) {
+    collectBodyParts(child, acc);
+  }
+}
+
 function decodeBody(payload?: gmail_v1.Schema$MessagePart): { text: string; html?: string } {
   if (!payload) return { text: "" };
-  const parts = payload.parts ?? [payload];
-  let text = "";
-  let html: string | undefined;
-  for (const part of parts) {
-    const data = part.body?.data;
-    if (!data) continue;
-    const decoded = Buffer.from(data, "base64url").toString("utf-8");
-    if (part.mimeType === "text/html") html = decoded;
-    else if (part.mimeType === "text/plain") text = decoded;
+  const acc: { text?: string; html?: string } = {};
+  collectBodyParts(payload, acc);
+  let text = acc.text ?? "";
+  const html = acc.html;
+  if ((!text || looksLikeMarkup(text)) && html) {
+    // Prefer a clean render of the HTML part over a text/plain part that's
+    // empty or (some senders generate this) itself full of raw markup.
+    text = stripHtml(html);
+  } else if (looksLikeMarkup(text)) {
+    text = stripHtml(text);
   }
-  if (!text && html) text = html.replace(/<[^>]+>/g, " ");
   return { text, html };
 }
 

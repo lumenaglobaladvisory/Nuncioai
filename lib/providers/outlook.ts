@@ -1,4 +1,5 @@
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { stripHtml } from "./html";
 import type {
   CalendarProvider,
   CreateEventPayload,
@@ -63,7 +64,7 @@ function toProviderMessage(msg: GraphMessage, myEmail: string): ProviderMessage 
     fromEmail,
     toEmails: (msg.toRecipients ?? []).map((r) => r.emailAddress.address),
     subject: msg.subject,
-    bodyText: msg.body.contentType === "text" ? msg.body.content : msg.body.content.replace(/<[^>]+>/g, " "),
+    bodyText: msg.body.contentType === "text" ? msg.body.content : stripHtml(msg.body.content),
     bodyHtml: msg.body.contentType === "html" ? msg.body.content : undefined,
     sentAt: msg.sentDateTime,
     direction: fromEmail.toLowerCase() === myEmail.toLowerCase() ? "outbound" : "inbound",

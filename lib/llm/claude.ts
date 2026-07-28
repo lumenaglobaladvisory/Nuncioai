@@ -47,6 +47,8 @@ const TRIAGE_SYSTEM = `You are InboxPilot's triage engine. Classify a single ema
 
 Judge the thread by its most recent message, whoever sent it. If the recipient (the user, identified by their email address) sent the last message in the thread, nothing is currently pending on their side - they're waiting on a reply, not the other way around. Always classify that case as fyi, regardless of what the message says, even if it contains a question or request addressed to someone else. Chasing an overdue reply is handled separately by a follow-up policy, not by this triage step.
 
+Generic marketing/informational language does not count as a personal ask or real urgency, even when it uses request- or urgency-shaped phrasing: "please visit our site", "learn more", "click here", "confirm your preferences", or security-tips copy that happens to contain words like "urgent" (e.g. "watch out for urgent-sounding scam requests") are boilerplate, not something the recipient personally needs to act on today. Judge intent, not keyword presence - a mass email addressed generically (or a corporate/brand sender) asking the reader to "please visit" a resource page is noise or fyi, never must_respond_today.
+
 Categories (pick exactly one):
 - must_respond_today: the last inbound message contains a direct, specific ask or question addressed to the recipient (not a rhetorical question in marketing copy), AND there is a genuine same-day time pressure - an explicit deadline, "urgent"/"asap"/"EOD"/"by tomorrow" language, or the ask is clearly blocking someone else's work right now.
 - review_this_week: contains a real ask, question, or decision point for the recipient, but with no same-day urgency signal. This is the default for "someone wants something from me."
