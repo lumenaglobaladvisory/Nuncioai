@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from "@/lib/concurrency";
 import type {
   CalendarProvider,
   CreateEventPayload,
@@ -27,12 +28,18 @@ interface GraphMessage {
   categories: string[];
 }
 
+interface GraphPage<T> {
+  value: T[];
+  "@odata.nextLink"?: string;
+}
+
 export interface MicrosoftTokens {
   accessToken: string;
 }
 
 async function graphFetch<T>(path: string, tokens: MicrosoftTokens, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${GRAPH_BASE}${path}`, {
+  const url = path.startsWith("https://") ? path : `${GRAPH_BASE}${path}`;
+  const res = await fetch(url, {
     ...init,
     headers: {
       Authorization: `Bearer ${tokens.accessToken}`,
@@ -86,23 +93,30 @@ export class OutlookProvider implements EmailProvider {
   constructor(private tokens: MicrosoftTokens, private myEmail: string) {}
 
   async fetchEmails(filters: FetchEmailsFilters): Promise<ProviderThread[]> {
+    const target = filters.maxResults ?? 25;
+    const pageSize = Math.min(100, target);
     const params = new URLSearchParams({
-      $top: String(filters.maxResults ?? 25),
+      $top: String(pageSize),
       $orderby: "sentDateTime desc",
     });
     if (filters.after) params.set("$filter", `sentDateTime ge ${filters.after}`);
     if (filters.query) params.set("$search", `"${filters.query}"`);
-    const { value } = await graphFetch<{ value: GraphMessage[] }>(
-      `/me/messages?${params.toString()}`,
-      this.tokens
-    );
+
+    const messages: GraphMessage[] = [];
+    let next: string | undefined = `/me/messages?${params.toString()}`;
+    while (next && messages.length < target) {
+      const page: GraphPage<GraphMessage> = await graphFetch<GraphPage<GraphMessage>>(next, this.tokens);
+      messages.push(...page.value);
+      next = page["@odata.nextLink"];
+    }
+
     const byConversation = new Map<string, GraphMessage[]>();
-    for (const msg of value) {
+    for (const msg of messages) {
       const list = byConversation.get(msg.conversationId) ?? [];
       list.push(msg);
       byConversation.set(msg.conversationId, list);
     }
-    return Promise.all([...byConversation.values()].map((msgs) => messagesToThread(msgs, this.myEmail)));
+    return mapWithConcurrency([...byConversation.values()], 8, (msgs) => messagesToThread(msgs, this.myEmail));
   }
 
   async fetchThread(providerThreadId: string): Promise<ProviderThread | null> {

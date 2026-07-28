@@ -223,7 +223,7 @@ export default function PoliciesClient({ initialPolicies }: { initialPolicies: P
               <input
                 value={scope}
                 onChange={(e) => setScope(e.target.value)}
-                placeholder="emails_labeled:proposals or category:newsletter"
+                placeholder="emails_labeled:proposals or category:noise"
                 className="mt-1 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
               />
             </div>

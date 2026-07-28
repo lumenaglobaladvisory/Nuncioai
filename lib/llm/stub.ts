@@ -15,10 +15,30 @@ import type {
 // commitments. It exists so the full app loop (triage -> summarize -> draft
 // -> plan -> execute/undo) is exercisable without a live LLM.
 
-const NOTIFICATION_RE = /no-?reply|notification|alerts?@|do-?not-?reply/i;
-const NEWSLETTER_RE = /unsubscribe|newsletter|view in browser/i;
-const URGENT_RE = /\burgent\b|\basap\b|\bdeadline\b|\beod\b|end of day|right away/i;
+// Sender/body signals for automated or bulk mail - checked first, since this
+// is the biggest source of false positives for the categories below (a
+// notification or newsletter can easily contain a stray "?" or the word
+// "review" without being something a person needs to act on).
+const SENDER_NOISE_RE = /no-?reply|do-?not-?reply|notification|alerts?@|digest@|updates?@|news@|mailer@|system@|\bbot@|automated/i;
+const BODY_NOISE_RE = /unsubscribe|view in browser|manage (your )?(email )?preferences|update your (email )?preferences/i;
+
+const URGENT_RE = /\burgent\b|\basap\b|\bdeadline\b|\beod\b|end of day|right away|by (today|tomorrow|tonight|end of week|eow)\b|time.?sensitive|immediately/i;
+// Direct, specific asks - phrases a person uses when they actually want
+// something from the recipient, as opposed to a generic sentence containing "?".
+const DIRECT_ASK_RE =
+  /\b(could you|can you|would you|please [a-z]+|let me know|need (your|you to)|requires? your|waiting on you|your (approval|input|sign-?off|feedback|thoughts)|confirm|approve)\b/i;
 const ASK_RE = /\bplease\b|\bcould you\b|\bcan you\b|\blet me know\b|\bconfirm\b|\breview\b|\bapprove\b|\?\s*$/im;
+
+function isNoise(msg: ProviderMessage): boolean {
+  return SENDER_NOISE_RE.test(msg.fromEmail) || BODY_NOISE_RE.test(msg.subject) || BODY_NOISE_RE.test(msg.bodyText);
+}
+
+// A "?" alone isn't enough signal (rhetorical questions in marketing copy,
+// etc.) - require it to appear in a sentence that also addresses "you".
+function hasDirectQuestionToRecipient(bodyText: string): boolean {
+  const sentences = bodyText.split(/(?<=[.?!])\s+/).map((s) => s.trim());
+  return sentences.some((s) => s.endsWith("?") && /\byou\b/i.test(s) && s.length > 8);
+}
 
 function lastInbound(thread: ProviderThread): ProviderMessage | undefined {
   return [...thread.messages].reverse().find((m) => m.direction === "inbound");
@@ -53,43 +73,42 @@ export const stubService: LLMService = {
   async classifyThread(thread, _myEmail): Promise<TriageResult> {
     const last = lastInbound(thread);
     if (!last) {
-      return { category: "reference", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
+      // Outbound-only thread (you sent something, no reply yet) - nothing to
+      // action from a triage standpoint; the no_reply policy trigger handles
+      // "chase this up" separately.
+      return { category: "fyi", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
     }
-    if (NOTIFICATION_RE.test(last.fromEmail)) {
-      return { category: "notification", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
+
+    if (isNoise(last)) {
+      return { category: "noise", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
     }
-    if (NEWSLETTER_RE.test(last.subject) || NEWSLETTER_RE.test(last.bodyText)) {
-      return { category: "newsletter", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
+
+    const isDirectAsk = DIRECT_ASK_RE.test(last.bodyText) || hasDirectQuestionToRecipient(last.bodyText);
+    if (!isDirectAsk) {
+      return { category: "fyi", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
     }
 
     const requestedActions = requestedActionSentences(thread);
     const isUrgent = URGENT_RE.test(last.subject) || URGENT_RE.test(last.bodyText);
+    const priority = requestedActions.length > 0 ? "medium" : "low";
 
-    if (requestedActions.length > 0 || last.bodyText.includes("?")) {
-      const priority = isUrgent ? "high" : requestedActions.length > 1 ? "medium" : "medium";
-      const priorityReasons = [
-        isUrgent ? "Message contains urgency language (urgent/asap/deadline)." : "Sender is asking a direct question or requesting action.",
-      ];
+    if (isUrgent) {
       return {
-        category: "must_respond",
-        priority,
-        priorityReasons,
+        category: "must_respond_today",
+        priority: "high",
+        priorityReasons: ["Direct request with same-day urgency language (urgent/asap/deadline/EOD)."],
         deadline: null,
         requestedActions,
       };
     }
 
-    if (last.bodyText.trim().length < 400) {
-      return {
-        category: "needs_review",
-        priority: "low",
-        priorityReasons: ["Short message without an explicit question or request."],
-        deadline: null,
-        requestedActions: [],
-      };
-    }
-
-    return { category: "low_value", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
+    return {
+      category: "review_this_week",
+      priority,
+      priorityReasons: ["Sender is asking a direct question or requesting something, no same-day urgency detected."],
+      deadline: null,
+      requestedActions,
+    };
   },
 
   async summarizeThread(thread): Promise<ThreadSummary> {

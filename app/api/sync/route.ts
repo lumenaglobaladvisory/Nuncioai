@@ -4,6 +4,14 @@ import { withUser } from "@/lib/api-utils";
 import { getEmailProvider } from "@/lib/providers";
 import { getLLMService, isStubMode } from "@/lib/llm";
 import { getTodayList } from "@/lib/triage";
+import { mapWithConcurrency } from "@/lib/concurrency";
+
+// How many threads to pull per connected account per sync. Paginated at the
+// provider level (see lib/providers/gmail.ts, outlook.ts) so this can be
+// raised without a single oversized API call; classification below is
+// concurrency-limited so a larger cap doesn't blow Vercel's function timeout.
+const SYNC_MAX_THREADS = 250;
+const CLASSIFY_CONCURRENCY = 8;
 
 export async function POST() {
   return withUser(async (user) => {
@@ -14,9 +22,9 @@ export async function POST() {
 
     for (const account of accounts) {
       const provider = getEmailProvider(account);
-      const providerThreads = await provider.fetchEmails({ maxResults: 50 });
+      const providerThreads = await provider.fetchEmails({ maxResults: SYNC_MAX_THREADS });
 
-      for (const pt of providerThreads) {
+      const upserted = await mapWithConcurrency(providerThreads, CLASSIFY_CONCURRENCY, async (pt) => {
         const thread = await prisma.emailThread.upsert({
           where: {
             connectedAccountId_providerThreadId: {
@@ -41,7 +49,6 @@ export async function POST() {
             labels: JSON.stringify(pt.labels),
           },
         });
-        threadsSynced++;
 
         await prisma.emailMessage.deleteMany({ where: { threadId: thread.id } });
         await prisma.emailMessage.createMany({
@@ -60,21 +67,25 @@ export async function POST() {
           })),
         });
 
-        if (!thread.category) {
-          const triage = await llm.classifyThread(pt, account.email);
-          await prisma.emailThread.update({
-            where: { id: thread.id },
-            data: {
-              category: triage.category,
-              priority: triage.priority,
-              priorityReasons: JSON.stringify(triage.priorityReasons),
-              deadline: triage.deadline ? new Date(triage.deadline) : null,
-              requestedActions: JSON.stringify(triage.requestedActions),
-            },
-          });
-          threadsClassified++;
-        }
-      }
+        return { thread, pt };
+      });
+      threadsSynced += upserted.length;
+
+      const toClassify = upserted.filter(({ thread }) => !thread.category);
+      await mapWithConcurrency(toClassify, CLASSIFY_CONCURRENCY, async ({ thread, pt }) => {
+        const triage = await llm.classifyThread(pt, account.email);
+        await prisma.emailThread.update({
+          where: { id: thread.id },
+          data: {
+            category: triage.category,
+            priority: triage.priority,
+            priorityReasons: JSON.stringify(triage.priorityReasons),
+            deadline: triage.deadline ? new Date(triage.deadline) : null,
+            requestedActions: JSON.stringify(triage.requestedActions),
+          },
+        });
+      });
+      threadsClassified += toClassify.length;
     }
 
     const today = await getTodayList(user.id);

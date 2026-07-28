@@ -1,14 +1,14 @@
 import { z } from "zod";
 import type { ProviderThread } from "@/lib/providers/types";
 
-export const TRIAGE_CATEGORIES = [
-  "must_respond",
-  "needs_review",
-  "low_value",
-  "notification",
-  "newsletter",
-  "reference",
-] as const;
+// must_respond_today: needs a reply from you today - a direct ask/question
+//   with urgency (deadline, "asap", time-sensitive) from a real correspondent.
+// review_this_week: needs your attention/decision eventually, no same-day urgency.
+// fyi: informational, no action needed, from a real correspondence (closes a
+//   loop, shares context) - distinct from noise, which is automated/bulk mail.
+// noise: notifications, newsletters, automated/bulk senders - never needs a
+//   reply, safe to defer or auto-file.
+export const TRIAGE_CATEGORIES = ["must_respond_today", "review_this_week", "fyi", "noise"] as const;
 export type TriageCategory = (typeof TRIAGE_CATEGORIES)[number];
 
 export const PRIORITIES = ["high", "medium", "low"] as const;

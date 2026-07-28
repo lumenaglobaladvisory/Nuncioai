@@ -1,4 +1,5 @@
 import { google, gmail_v1 } from "googleapis";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import type {
   CalendarProvider,
   CreateEventPayload,
@@ -100,13 +101,22 @@ export class GmailProvider implements EmailProvider {
   }
 
   async fetchEmails(filters: FetchEmailsFilters): Promise<ProviderThread[]> {
-    const { data } = await this.gmail.users.threads.list({
-      userId: "me",
-      maxResults: filters.maxResults ?? 25,
-      q: filters.query,
-      labelIds: filters.labelIds,
-    });
-    const threads = await Promise.all((data.threads ?? []).map((t) => this.fetchThread(t.id!)));
+    const target = filters.maxResults ?? 25;
+    const threadIds: string[] = [];
+    let pageToken: string | undefined;
+    do {
+      const { data } = await this.gmail.users.threads.list({
+        userId: "me",
+        maxResults: Math.min(100, target - threadIds.length),
+        q: filters.query,
+        labelIds: filters.labelIds,
+        pageToken,
+      });
+      threadIds.push(...(data.threads ?? []).map((t) => t.id!));
+      pageToken = data.nextPageToken ?? undefined;
+    } while (pageToken && threadIds.length < target);
+
+    const threads = await mapWithConcurrency(threadIds, 8, (id) => this.fetchThread(id));
     return threads.filter((t): t is ProviderThread => t !== null);
   }
 

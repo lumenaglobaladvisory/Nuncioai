@@ -23,18 +23,11 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     config: { triggerType: "no_reply", timeDelay: "3d", action: "draft_followup", tone: "polite_firm" },
   },
   {
-    key: "newsletter-cleanup",
-    title: "Auto-file newsletters",
-    description: "Summarize and archive newsletters every week so they never pile up.",
+    key: "noise-cleanup",
+    title: "Clear out noise",
+    description: "Summarize and archive newsletters, notifications, and other automated mail every week.",
     category: "cleanup",
-    config: { triggerType: "schedule", timeDelay: "7d", scope: "category:newsletter", action: "summarize_and_archive" },
-  },
-  {
-    key: "notification-cleanup",
-    title: "Clear out notifications",
-    description: "Summarize and archive automated notifications (GitHub, tools, alerts) every week.",
-    category: "cleanup",
-    config: { triggerType: "schedule", timeDelay: "7d", scope: "category:notification", action: "summarize_and_archive" },
+    config: { triggerType: "schedule", timeDelay: "7d", scope: "category:noise", action: "summarize_and_archive" },
   },
   {
     key: "meeting-prep",

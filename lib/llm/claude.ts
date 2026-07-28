@@ -43,10 +43,15 @@ async function callJSON<S extends z.ZodTypeAny>(system: string, user: string, sc
   return schema.parse(parsed);
 }
 
-const TRIAGE_SYSTEM = `You are InboxPilot's triage engine. Classify a single email thread for a busy client-facing professional (consultant/agency/sales/operator).
+const TRIAGE_SYSTEM = `You are InboxPilot's triage engine. Classify a single email thread for a busy client-facing professional (consultant/agency/sales/operator). Be strict - most inboxes are mostly noise and fyi, not must_respond_today. Err toward the lower-urgency category when signals are ambiguous.
 
-Categories (pick exactly one): must_respond, needs_review, low_value, notification, newsletter, reference.
-Priority (only for must_respond/needs_review; null otherwise): high, medium, low - based on relationship (client/boss/colleague/unknown), explicit deadlines, and impact on revenue/project timelines/obligations.
+Categories (pick exactly one):
+- must_respond_today: the last inbound message contains a direct, specific ask or question addressed to the recipient (not a rhetorical question in marketing copy), AND there is a genuine same-day time pressure - an explicit deadline, "urgent"/"asap"/"EOD"/"by tomorrow" language, or the ask is clearly blocking someone else's work right now.
+- review_this_week: contains a real ask, question, or decision point for the recipient, but with no same-day urgency signal. This is the default for "someone wants something from me."
+- fyi: informational content from a real correspondence with no action required - a closing reply ("thanks", "sounds good"), a status update, a colleague sharing context. Not automated/bulk mail.
+- noise: notifications, alerts, newsletters, marketing, automated systems, receipts, or any bulk/no-reply sender. This includes anything with unsubscribe links, "no-reply" type senders, or automated tooling (CI, monitoring, calendar-system notifications). When in doubt about whether a sender is a real person or a system, and there's no specific ask directed at the recipient by name, prefer noise over the other categories.
+
+Priority (only for must_respond_today/review_this_week; null for fyi/noise): high, medium, low - based on relationship (client/boss/colleague/unknown), explicit deadlines, and impact on revenue/project timelines/obligations. must_respond_today is usually high priority by definition.
 
 Respond with ONLY a JSON object matching this shape, no prose:
 {"category": "...", "priority": "high"|"medium"|"low"|null, "priorityReasons": ["..."], "deadline": "ISO date or null", "requestedActions": ["..."]}`;

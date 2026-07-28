@@ -1,5 +1,10 @@
 const COLORS: Record<string, string> = {
   // categories
+  must_respond_today: "bg-red-100 text-red-800",
+  review_this_week: "bg-amber-100 text-amber-800",
+  fyi: "bg-blue-100 text-blue-700",
+  noise: "bg-neutral-100 text-neutral-500",
+  // legacy category values (pre-taxonomy-update threads, shown until re-synced)
   must_respond: "bg-red-100 text-red-800",
   needs_review: "bg-amber-100 text-amber-800",
   low_value: "bg-neutral-100 text-neutral-600",

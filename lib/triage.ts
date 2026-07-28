@@ -36,9 +36,9 @@ export interface TodayItem {
 }
 
 /**
- * The ordered "Today" list: must_respond first (high -> medium -> low
- * priority, most recent first), then needs_review. Everything else
- * (low_value/notification/newsletter/reference) is left out of Today by
+ * The ordered "Today" list: must_respond_today first (high -> medium -> low
+ * priority, soonest deadline first, most recent first), then
+ * review_this_week. Everything else (fyi/noise) is left out of Today by
  * design - it's summarized/deferred elsewhere, not queued for action.
  */
 export async function getTodayList(userId: string): Promise<TodayItem[]> {
@@ -47,23 +47,26 @@ export async function getTodayList(userId: string): Promise<TodayItem[]> {
       connectedAccount: { userId },
       isArchived: false,
       snoozedUntil: null,
-      category: { in: ["must_respond", "needs_review"] },
+      category: { in: ["must_respond_today", "review_this_week"] },
     },
     orderBy: [{ lastMessageAt: "desc" }],
   });
 
   const sorted = [...threads].sort((a, b) => {
-    if (a.category !== b.category) return a.category === "must_respond" ? -1 : 1;
+    if (a.category !== b.category) return a.category === "must_respond_today" ? -1 : 1;
     const pa = PRIORITY_RANK[a.priority ?? "low"] ?? 2;
     const pb = PRIORITY_RANK[b.priority ?? "low"] ?? 2;
     if (pa !== pb) return pa - pb;
+    const da = a.deadline?.getTime() ?? Infinity;
+    const db = b.deadline?.getTime() ?? Infinity;
+    if (da !== db) return da - db;
     return b.lastMessageAt.getTime() - a.lastMessageAt.getTime();
   });
 
   return sorted.map((thread) => {
     const reasons: string[] = [];
-    if (thread.category === "must_respond") reasons.push("Needs a direct response");
-    else reasons.push("Worth a quick look");
+    if (thread.category === "must_respond_today") reasons.push("Needs a direct response today");
+    else reasons.push("Worth reviewing this week");
     if (thread.priority === "high") reasons.push("high priority");
     if (thread.deadline) reasons.push(`deadline ${thread.deadline.toISOString().slice(0, 10)}`);
     if (thread.priorityReasons) {
