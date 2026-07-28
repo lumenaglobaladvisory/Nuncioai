@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, RefreshCw } from "lucide-react";
+import { Inbox, RefreshCw, Sparkles } from "lucide-react";
 import type { EmailThread } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
 import type { WeeklyDigest as WeeklyDigestData, WeeklyImpact } from "@/lib/stats";
@@ -40,22 +40,26 @@ export default function DashboardClient({
 }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
+  const [retriaging, setRetriaging] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSync() {
-    setSyncing(true);
+  async function runSync(force: boolean) {
+    (force ? setRetriaging : setSyncing)(true);
     setError(null);
     try {
-      const result = await apiFetch<SyncResult>("/api/sync", { method: "POST" });
+      const result = await apiFetch<SyncResult>("/api/sync", { method: "POST", body: JSON.stringify({ force }) });
       setSyncResult(result);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
-      setSyncing(false);
+      (force ? setRetriaging : setSyncing)(false);
     }
   }
+
+  const handleSync = () => runSync(false);
+  const handleRetriage = () => runSync(true);
 
   return (
     <div className="space-y-8">
@@ -70,17 +74,23 @@ export default function DashboardClient({
             />
           </p>
         </div>
-        <Button onClick={handleSync} disabled={syncing}>
-          <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} strokeWidth={2.25} />
-          {syncing ? "Syncing..." : "Sync inbox"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleRetriage} disabled={syncing || retriaging}>
+            <Sparkles className={`h-3.5 w-3.5 ${retriaging ? "animate-pulse" : ""}`} strokeWidth={2.25} />
+            {retriaging ? "Re-triaging..." : "Re-triage inbox"}
+          </Button>
+          <Button onClick={handleSync} disabled={syncing || retriaging}>
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} strokeWidth={2.25} />
+            {syncing ? "Syncing..." : "Sync inbox"}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {syncResult && (
         <p className="text-xs text-neutral-500">
-          Synced {syncResult.threadsSynced} threads across {syncResult.accountsSynced} account(s), classified{" "}
-          {syncResult.threadsClassified} new.
+          Synced {syncResult.threadsSynced} threads across {syncResult.accountsSynced} account(s), (re)classified{" "}
+          {syncResult.threadsClassified}.
         </p>
       )}
 

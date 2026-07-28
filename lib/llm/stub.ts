@@ -71,14 +71,19 @@ export const stubService: LLMService = {
   mode: "stub",
 
   async classifyThread(thread, _myEmail): Promise<TriageResult> {
-    const last = lastInbound(thread);
-    if (!last) {
-      // Outbound-only thread (you sent something, no reply yet) - nothing to
-      // action from a triage standpoint; the no_reply policy trigger handles
-      // "chase this up" separately.
+    const lastMessage = thread.messages[thread.messages.length - 1];
+    if (!lastMessage || lastMessage.direction === "outbound") {
+      // Nothing pending on your side right now: either the thread is empty,
+      // or the most recent message is one you sent - you're waiting on them,
+      // not the other way around. Judge this by the actual last message in
+      // the thread, not just the last inbound one, so a thread you've
+      // already replied to doesn't keep showing as needing a response.
+      // Chasing an overdue reply is handled separately by the no_reply
+      // policy trigger, not by Today triage.
       return { category: "fyi", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
     }
 
+    const last = lastMessage;
     if (isNoise(last)) {
       return { category: "noise", priority: null, priorityReasons: [], deadline: null, requestedActions: [] };
     }

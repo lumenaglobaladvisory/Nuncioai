@@ -13,7 +13,10 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 const SYNC_MAX_THREADS = 250;
 const CLASSIFY_CONCURRENCY = 8;
 
-export async function POST() {
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const force = Boolean((body as { force?: boolean })?.force);
+
   return withUser(async (user) => {
     const accounts = await prisma.connectedAccount.findMany({ where: { userId: user.id } });
     const llm = getLLMService();
@@ -25,13 +28,22 @@ export async function POST() {
       const providerThreads = await provider.fetchEmails({ maxResults: SYNC_MAX_THREADS });
 
       const upserted = await mapWithConcurrency(providerThreads, CLASSIFY_CONCURRENCY, async (pt) => {
-        const thread = await prisma.emailThread.upsert({
-          where: {
-            connectedAccountId_providerThreadId: {
-              connectedAccountId: account.id,
-              providerThreadId: pt.providerThreadId,
-            },
+        const where = {
+          connectedAccountId_providerThreadId: {
+            connectedAccountId: account.id,
+            providerThreadId: pt.providerThreadId,
           },
+        };
+        // Captured before the upsert so we can tell whether this sync brought
+        // new activity (e.g. a reply, ours or theirs) that invalidates the
+        // thread's existing classification.
+        const existing = await prisma.emailThread.findUnique({
+          where,
+          select: { category: true, lastMessageAt: true },
+        });
+
+        const thread = await prisma.emailThread.upsert({
+          where,
           create: {
             connectedAccountId: account.id,
             providerThreadId: pt.providerThreadId,
@@ -67,11 +79,13 @@ export async function POST() {
           })),
         });
 
-        return { thread, pt };
+        const hasNewActivity = !existing || new Date(pt.lastMessageAt).getTime() > existing.lastMessageAt.getTime();
+        const needsClassification = force || !existing?.category || hasNewActivity;
+        return { thread, pt, needsClassification };
       });
       threadsSynced += upserted.length;
 
-      const toClassify = upserted.filter(({ thread }) => !thread.category);
+      const toClassify = upserted.filter((u) => u.needsClassification);
       await mapWithConcurrency(toClassify, CLASSIFY_CONCURRENCY, async ({ thread, pt }) => {
         const triage = await llm.classifyThread(pt, account.email);
         await prisma.emailThread.update({

@@ -156,6 +156,7 @@ async function runTool(action: PlanAction): Promise<{ previousState: unknown }> 
         subject: String(payload.subject),
         bodyText: String(payload.bodyText),
       });
+      const sentAt = new Date();
       await prisma.emailMessage.create({
         data: {
           threadId: thread.id,
@@ -166,8 +167,23 @@ async function runTool(action: PlanAction): Promise<{ previousState: unknown }> 
           ccEmails: payload.cc ? JSON.stringify(payload.cc) : null,
           subject: String(payload.subject),
           bodyText: String(payload.bodyText),
-          sentAt: new Date(),
+          sentAt,
           direction: "outbound",
+        },
+      });
+      // We just became the most recent message in this thread - nothing is
+      // pending on our side anymore. Reflect that immediately rather than
+      // waiting on the next sync (mirrors the "last message is outbound ->
+      // fyi" rule the triage classifiers apply).
+      await prisma.emailThread.update({
+        where: { id: thread.id },
+        data: {
+          category: "fyi",
+          priority: null,
+          priorityReasons: JSON.stringify([]),
+          deadline: null,
+          requestedActions: JSON.stringify([]),
+          lastMessageAt: sentAt,
         },
       });
       return { previousState: null };
