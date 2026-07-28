@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { MemoryEntry, User } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
 import Badge from "./Badge";
+import Button from "./Button";
 
 export default function SettingsClient({ user, memories }: { user: User; memories: MemoryEntry[] }) {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
 
   return (
     <>
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <h2 className="text-sm font-semibold text-neutral-700">Default tone</h2>
         <p className="text-xs text-neutral-500">
           Used as the default when drafting, unless you pick a different tone on a specific thread.
@@ -62,18 +63,14 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
           onChange={(e) => setTone(e.target.value)}
           rows={2}
           placeholder="concise, professional, friendly"
-          className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+          className="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
         />
-        <button
-          onClick={saveTone}
-          disabled={savingTone}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-        >
+        <Button onClick={saveTone} disabled={savingTone}>
           {savingTone ? "Saving..." : "Save"}
-        </button>
+        </Button>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <h2 className="text-sm font-semibold text-neutral-700">Recipient &amp; client memory</h2>
         <p className="text-xs text-neutral-500">
           Notes InboxPilot factors into drafts for a specific recipient or client (preferred cadence, past
@@ -85,7 +82,7 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as typeof scope)}
-              className="mt-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="mt-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             >
               <option value="recipient">recipient</option>
               <option value="client">client</option>
@@ -98,7 +95,7 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
               value={key}
               onChange={(e) => setKey(e.target.value)}
               required
-              className="mt-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="mt-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex-1">
@@ -108,16 +105,12 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
               onChange={(e) => setData(e.target.value)}
               required
               placeholder="Prefers async updates over calls; always CC their assistant."
-              className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             />
           </div>
-          <button
-            type="submit"
-            disabled={savingMemory}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={savingMemory}>
             Add
-          </button>
+          </Button>
         </form>
         <ul className="divide-y divide-neutral-200">
           {memories.map((m) => (
@@ -126,13 +119,9 @@ export default function SettingsClient({ user, memories }: { user: User; memorie
                 <Badge label={m.scope} /> <span className="font-medium">{m.key}</span>
                 <p className="text-xs text-neutral-500">{m.data}</p>
               </div>
-              <button
-                onClick={() => removeMemory(m.id)}
-                disabled={busyId === m.id}
-                className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
+              <Button variant="danger" size="sm" onClick={() => removeMemory(m.id)} disabled={busyId === m.id}>
                 Delete
-              </button>
+              </Button>
             </li>
           ))}
           {memories.length === 0 && <li className="py-2 text-sm text-neutral-400">No memory entries yet.</li>}

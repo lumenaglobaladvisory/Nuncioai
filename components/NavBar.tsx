@@ -1,38 +1,57 @@
+"use client";
+
 import Link from "next/link";
-import { signOut } from "@/auth";
+import { usePathname } from "next/navigation";
+import { Mail, LayoutDashboard, Workflow, CheckSquare, Settings } from "lucide-react";
+import { signOutAction } from "@/lib/actions";
+import Avatar from "./Avatar";
+
+const NAV_ITEMS = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/policies", label: "Policies", icon: Workflow },
+  { href: "/tasks", label: "Tasks & Calendar", icon: CheckSquare },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
 
 export default function NavBar({ userLabel }: { userLabel: string }) {
+  const pathname = usePathname();
+
   return (
-    <header className="border-b border-neutral-200 bg-white">
+    <header className="sticky top-0 z-10 border-b border-neutral-200/80 bg-white/80 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-sm font-semibold tracking-tight text-neutral-900">
-            InboxPilot
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white">
+              <Mail className="h-4 w-4" strokeWidth={2.25} />
+            </span>
+            <span className="text-sm font-semibold tracking-tight text-neutral-900">InboxPilot</span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm text-neutral-600">
-            <Link href="/" className="hover:text-neutral-900">
-              Dashboard
-            </Link>
-            <Link href="/policies" className="hover:text-neutral-900">
-              Policies
-            </Link>
-            <Link href="/tasks" className="hover:text-neutral-900">
-              Tasks &amp; Calendar
-            </Link>
-            <Link href="/settings" className="hover:text-neutral-900">
-              Settings
-            </Link>
+          <nav className="flex items-center gap-1">
+            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    active ? "bg-indigo-50 text-indigo-700" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
-        <div className="flex items-center gap-3 text-sm text-neutral-600">
-          <span>{userLabel}</span>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button type="submit" className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs hover:bg-neutral-50">
+        <div className="flex items-center gap-3">
+          <Avatar name={userLabel} size="sm" />
+          <span className="hidden text-sm text-neutral-600 sm:inline">{userLabel}</span>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="rounded-lg border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
+            >
               Sign out
             </button>
           </form>

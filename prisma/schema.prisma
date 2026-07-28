@@ -17,6 +17,7 @@ model User {
   image         String?
 
   tonePreference String? // e.g. "concise, professional, friendly"
+  onboardedAt    DateTime? // set once the personalization wizard (or a skip) completes
 
   accounts          Account[]
   sessions          Session[]
@@ -203,6 +204,7 @@ model Policy {
   scope       String? // e.g. "emails_labeled:proposals"
   action      String // draft_followup | summarize_and_archive | send_reminder
   tone        String? // polite_firm | warm | firm | neutral
+  templateKey String? // which preset in lib/policy-templates.ts this came from, if any
   enabled     Boolean   @default(true)
   lastRunAt   DateTime?
   createdAt   DateTime  @default(now())

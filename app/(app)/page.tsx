@@ -9,6 +9,9 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
+  if (!user.onboardedAt) redirect("/onboarding");
+
   const [today, pendingPlans, accounts] = await Promise.all([
     getTodayList(session.user.id),
     prisma.plan.findMany({

@@ -51,10 +51,75 @@ export interface PolicyRunResult {
   planId: string | null;
 }
 
+// Meetings aren't threads, so this trigger doesn't go through the
+// thread-candidate/action-switch machinery below - it's a self-contained
+// path over CalendarEvent instead. Dedup is tracked by parsing prior
+// PlanAction payloads for this policy (PlanAction has no direct event FK).
+async function evaluateBeforeMeetingPolicy(
+  userId: string,
+  policy: Policy,
+  delayMs: number | null
+): Promise<PolicyRunResult> {
+  const windowMs = delayMs ?? 86_400_000; // default: 1 day before
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + windowMs);
+
+  const priorActions = await prisma.planAction.findMany({
+    where: { plan: { sourcePolicyId: policy.id }, tool: "create_task" },
+    select: { payload: true },
+  });
+  const remindedEventIds = new Set(
+    priorActions
+      .map((a) => {
+        try {
+          return (JSON.parse(a.payload) as { eventId?: string }).eventId;
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const events = await prisma.calendarEvent.findMany({
+    where: { userId, status: "created", startTime: { gte: now, lte: windowEnd } },
+  });
+  const candidates = events.filter((e) => !remindedEventIds.has(e.id));
+
+  await prisma.policy.update({ where: { id: policy.id }, data: { lastRunAt: new Date() } });
+
+  if (candidates.length === 0) return { policyId: policy.id, matched: 0, planId: null };
+
+  const actions = candidates.map((e) => ({
+    tool: "create_task" as const,
+    threadId: e.threadId ?? undefined,
+    payload: {
+      title: `Prepare for meeting: ${e.title}`,
+      description: `Meeting at ${e.startTime.toISOString()}${e.location ? ` (${e.location})` : ""}.`,
+      dueDate: e.startTime.toISOString(),
+      priority: "medium",
+      eventId: e.id,
+    },
+  }));
+
+  const plan = await createPlan({
+    userId,
+    kind: "policy_meeting_prep",
+    summary: `Policy "${policy.name}": ${actions.length} meeting prep task${actions.length === 1 ? "" : "s"} for upcoming meetings.`,
+    actions,
+    sourcePolicyId: policy.id,
+  });
+  return { policyId: policy.id, matched: candidates.length, planId: plan.id };
+}
+
 export async function evaluatePolicy(userId: string, policy: Policy): Promise<PolicyRunResult> {
   if (!policy.enabled) return { policyId: policy.id, matched: 0, planId: null };
 
   const delayMs = parseDuration(policy.timeDelay);
+
+  if (policy.triggerType === "before_meeting") {
+    return evaluateBeforeMeetingPolicy(userId, policy, delayMs);
+  }
+
   const alreadyActedOn = await threadIdsAlreadyActedOnByPolicy(policy.id);
   let candidates = (await scopedThreads(userId, policy)).filter((t) => !alreadyActedOn.has(t.id));
 
@@ -70,8 +135,6 @@ export async function evaluatePolicy(userId: string, policy: Policy): Promise<Po
     if (!dueToRun) candidates = [];
   } else if (policy.triggerType === "label_added") {
     // scope filter already applied; nothing further to narrow.
-  } else if (policy.triggerType === "before_meeting") {
-    candidates = []; // handled separately via evaluateBeforeMeetingPolicy
   }
 
   await prisma.policy.update({ where: { id: policy.id }, data: { lastRunAt: new Date() } });

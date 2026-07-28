@@ -64,11 +64,21 @@ export const extractionResultSchema = z.object({
 });
 export type ExtractionResult = z.infer<typeof extractionResultSchema>;
 
+export const toneProfileSchema = z.object({
+  summary: z.string(),
+});
+export type ToneProfile = z.infer<typeof toneProfileSchema>;
+
 export interface DraftRequest {
   thread: ProviderThread;
   tone?: string;
   instructions?: string;
   recipientMemory?: string;
+}
+
+export interface ToneSample {
+  subject: string;
+  bodyText: string;
 }
 
 export interface LLMService {
@@ -78,4 +88,5 @@ export interface LLMService {
   draftReply(request: DraftRequest): Promise<DraftResult>;
   draftFollowup(thread: ProviderThread, tone: string): Promise<DraftResult>;
   extractTasksAndEvents(thread: ProviderThread): Promise<ExtractionResult>;
+  inferTone(samples: ToneSample[]): Promise<ToneProfile>;
 }

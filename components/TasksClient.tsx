@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { CheckSquare, CalendarDays } from "lucide-react";
 import type { CalendarEvent, Task } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
 import Badge from "./Badge";
+import Button from "./Button";
 
 type TaskWithThread = Task & { thread: { subject: string } | null };
 type EventWithThread = CalendarEvent & { thread: { subject: string } | null };
@@ -76,14 +78,17 @@ export default function TasksClient({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Tasks &amp; Calendar</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Tasks &amp; Calendar</h1>
         <p className="mt-1 text-sm text-neutral-500">
           Tasks and events extracted from email threads, plus anything you add directly.
         </p>
       </div>
 
       <section className="space-y-3">
-        <form onSubmit={addTask} className="flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-white p-4">
+        <form
+          onSubmit={addTask}
+          className="flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100"
+        >
           <div className="flex-1">
             <label className="text-xs font-medium text-neutral-500">New task</label>
             <input
@@ -91,7 +96,7 @@ export default function TasksClient({
               onChange={(e) => setTitle(e.target.value)}
               required
               placeholder="Send updated proposal to Acme"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
@@ -100,30 +105,36 @@ export default function TasksClient({
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="mt-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="mt-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
             <label className="text-xs font-medium text-neutral-500">Priority</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value)} className="mt-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="mt-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
+            >
               <option value="high">high</option>
               <option value="medium">medium</option>
               <option value="low">low</option>
             </select>
           </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={creating}>
             Add
-          </button>
+          </Button>
         </form>
 
-        <h2 className="text-sm font-semibold text-neutral-700">Open ({openTasks.length})</h2>
-        <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700">
+          <CheckSquare className="h-3.5 w-3.5 text-neutral-400" strokeWidth={2.25} />
+          Open ({openTasks.length})
+        </h2>
+        <div className="space-y-2">
           {openTasks.map((task) => (
-            <li key={task.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div
+              key={task.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm shadow-neutral-100"
+            >
               <div>
                 <p className="text-sm text-neutral-900">{task.title}</p>
                 <p className="text-xs text-neutral-400">
@@ -137,46 +148,51 @@ export default function TasksClient({
               </div>
               <div className="flex items-center gap-2">
                 <Badge label={task.priority} />
-                <button
-                  onClick={() => setStatus(task, "done")}
-                  disabled={busy === task.id}
-                  className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs hover:bg-neutral-50 disabled:opacity-50"
-                >
+                <Button variant="secondary" size="sm" onClick={() => setStatus(task, "done")} disabled={busy === task.id}>
                   Mark done
-                </button>
-                <button
-                  onClick={() => deleteTask(task)}
-                  disabled={busy === task.id}
-                  className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => deleteTask(task)} disabled={busy === task.id}>
                   Delete
-                </button>
+                </Button>
               </div>
-            </li>
+            </div>
           ))}
-          {openTasks.length === 0 && <li className="px-4 py-6 text-center text-sm text-neutral-400">No open tasks.</li>}
-        </ul>
+          {openTasks.length === 0 && (
+            <p className="rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-6 text-center text-sm text-neutral-400">
+              No open tasks.
+            </p>
+          )}
+        </div>
 
         {doneTasks.length > 0 && (
           <details>
             <summary className="cursor-pointer text-xs text-neutral-400">{doneTasks.length} completed/dismissed</summary>
-            <ul className="mt-2 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
+            <div className="mt-2 space-y-1.5">
               {doneTasks.map((task) => (
-                <li key={task.id} className="flex items-center justify-between px-4 py-2 text-sm text-neutral-400">
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-100 bg-white px-4 py-2 text-sm text-neutral-400"
+                >
                   <span className="line-through">{task.title}</span>
                   <Badge label={task.status} />
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </details>
         )}
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-neutral-700">Calendar events ({initialEvents.length})</h2>
-        <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700">
+          <CalendarDays className="h-3.5 w-3.5 text-neutral-400" strokeWidth={2.25} />
+          Calendar events ({initialEvents.length})
+        </h2>
+        <div className="space-y-2">
           {initialEvents.map((event) => (
-            <li key={event.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div
+              key={event.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm shadow-neutral-100"
+            >
               <div>
                 <p className="text-sm text-neutral-900">{event.title}</p>
                 <p className="text-xs text-neutral-400">
@@ -193,18 +209,18 @@ export default function TasksClient({
               </div>
               <div className="flex items-center gap-2">
                 <Badge label={event.status} />
-                <button
-                  onClick={() => deleteEvent(event)}
-                  disabled={busy === event.id}
-                  className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
+                <Button variant="danger" size="sm" onClick={() => deleteEvent(event)} disabled={busy === event.id}>
                   Delete
-                </button>
+                </Button>
               </div>
-            </li>
+            </div>
           ))}
-          {initialEvents.length === 0 && <li className="px-4 py-6 text-center text-sm text-neutral-400">No events yet.</li>}
-        </ul>
+          {initialEvents.length === 0 && (
+            <p className="rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-6 text-center text-sm text-neutral-400">
+              No events yet.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

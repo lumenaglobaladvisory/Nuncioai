@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { auth, signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SettingsClient from "@/components/SettingsClient";
+import Button from "@/components/Button";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -19,11 +22,28 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-neutral-900">Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Settings</h1>
         <p className="mt-1 text-sm text-neutral-500">Connected mailboxes, tone preferences, and per-recipient memory.</p>
       </div>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+            <Sparkles className="h-4.5 w-4.5" strokeWidth={2} />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Personalization</p>
+            <p className="text-xs text-neutral-500">Re-learn your tone and re-pick recommended policies.</p>
+          </div>
+        </div>
+        <Link href="/onboarding">
+          <Button variant="secondary" size="sm">
+            Redo personalization
+          </Button>
+        </Link>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <h2 className="text-sm font-semibold text-neutral-700">Connected mailboxes</h2>
         <ul className="divide-y divide-neutral-200">
           {connectedAccounts.map((a) => (
@@ -38,16 +58,16 @@ export default async function SettingsPage() {
         <div className="flex gap-2 pt-1">
           {googleEnabled && (
             <form action={async () => { "use server"; await signIn("google", { redirectTo: "/settings" }); }}>
-              <button type="submit" className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50">
+              <Button type="submit" variant="secondary" size="sm">
                 Connect Google
-              </button>
+              </Button>
             </form>
           )}
           {microsoftEnabled && (
             <form action={async () => { "use server"; await signIn("microsoft-entra-id", { redirectTo: "/settings" }); }}>
-              <button type="submit" className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50">
+              <Button type="submit" variant="secondary" size="sm">
                 Connect Microsoft
-              </button>
+              </Button>
             </form>
           )}
           {!googleEnabled && !microsoftEnabled && (

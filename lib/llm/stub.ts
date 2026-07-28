@@ -1,5 +1,14 @@
 import type { ProviderMessage, ProviderThread } from "@/lib/providers/types";
-import type { DraftRequest, DraftResult, ExtractionResult, LLMService, ThreadSummary, TriageResult } from "./types";
+import type {
+  DraftRequest,
+  DraftResult,
+  ExtractionResult,
+  LLMService,
+  ThreadSummary,
+  ToneProfile,
+  ToneSample,
+  TriageResult,
+} from "./types";
 
 // Deterministic, rule-based fallback used when ANTHROPIC_API_KEY isn't set.
 // Intentionally conservative: it never fabricates dates, prices, or
@@ -142,5 +151,48 @@ export const stubService: LLMService = {
       })),
       events: [],
     };
+  },
+
+  async inferTone(samples: ToneSample[]): Promise<ToneProfile> {
+    if (samples.length === 0) return { summary: "concise, professional, friendly" };
+
+    const bodies = samples.map((s) => s.bodyText.trim());
+    const sentenceCounts = bodies.map((b) => (b.match(/[.?!]+/g) ?? []).length || 1);
+    const wordCounts = bodies.map((b) => b.split(/\s+/).filter(Boolean).length);
+    const avgWordsPerSentence =
+      wordCounts.reduce((a, b) => a + b, 0) / sentenceCounts.reduce((a, b) => a + b, 0);
+
+    const greetings = bodies.map((b) => b.split("\n")[0]?.trim() ?? "");
+    const usesHi = greetings.filter((g) => /^hi\b/i.test(g)).length;
+    const usesHey = greetings.filter((g) => /^hey\b/i.test(g)).length;
+    const usesDear = greetings.filter((g) => /^dear\b/i.test(g)).length;
+
+    const SIGNOFFS = ["best", "thanks", "cheers", "regards", "best regards", "warmly", "talk soon"];
+    const signoffCounts = new Map<string, number>();
+    for (const body of bodies) {
+      const lines = body
+        .split("\n")
+        .map((l) => l.trim().toLowerCase().replace(/[.,!]+$/, ""))
+        .filter(Boolean);
+      const match = lines.find((l) => SIGNOFFS.includes(l));
+      if (match) signoffCounts.set(match, (signoffCounts.get(match) ?? 0) + 1);
+    }
+    const topSignoff = [...signoffCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    const exclaimCount = bodies.reduce((sum, b) => sum + (b.match(/!/g) ?? []).length, 0);
+    const upbeat = exclaimCount / samples.length > 0.5;
+
+    const formality = usesDear > usesHi + usesHey ? "formal" : "casual";
+    const greeting = usesHey >= usesHi ? "Hey" : "Hi";
+    const conciseness = avgWordsPerSentence < 14 ? "concise, short sentences" : "detailed, fuller paragraphs";
+
+    const parts = [
+      conciseness,
+      formality === "formal" ? `formal greetings ("Dear ...")` : `casual greetings ("${greeting} ...")`,
+      upbeat ? "upbeat tone" : "measured, even-keeled tone",
+      topSignoff ? `signs off with "${topSignoff.charAt(0).toUpperCase()}${topSignoff.slice(1)},"` : undefined,
+    ].filter((p): p is string => Boolean(p));
+
+    return { summary: parts.join(", ") };
   },
 };

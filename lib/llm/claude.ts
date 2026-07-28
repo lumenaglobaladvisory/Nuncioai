@@ -5,9 +5,11 @@ import {
   draftResultSchema,
   extractionResultSchema,
   threadSummarySchema,
+  toneProfileSchema,
   triageResultSchema,
   type DraftRequest,
   type LLMService,
+  type ToneSample,
 } from "./types";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
@@ -69,6 +71,10 @@ const EXTRACTION_SYSTEM = `You are InboxPilot's task/event extractor. Given an e
 
 Respond with ONLY JSON: {"tasks": [{"title": "...", "description": "..."|null, "dueDate": "ISO"|null, "priority": "high"|"medium"|"low"}], "events": [{"title": "...", "description": "..."|null, "startTime": "ISO", "endTime": "ISO", "location": "..."|null}]}`;
 
+const TONE_SYSTEM = `You are analyzing a professional's own past sent emails to describe their writing tone and style in one or two sentences, written as an instruction an AI assistant could follow when drafting replies on their behalf (e.g. "concise and warm, short paragraphs, signs off with 'Best,', avoids exclamation points"). Base this only on patterns actually present in the samples - don't invent traits you can't observe. If the samples are too sparse or inconsistent to say anything confident, default to "concise, professional, friendly".
+
+Respond with ONLY JSON: {"summary": "..."}`;
+
 export const claudeService: LLMService = {
   mode: "claude",
 
@@ -102,5 +108,11 @@ export const claudeService: LLMService = {
   async extractTasksAndEvents(thread) {
     const user = `Thread:\n${threadToTranscript(thread)}`;
     return callJSON(EXTRACTION_SYSTEM, user, extractionResultSchema);
+  },
+
+  async inferTone(samples: ToneSample[]) {
+    if (samples.length === 0) return { summary: "concise, professional, friendly" };
+    const user = samples.map((m, i) => `Email ${i + 1} - Subject: ${m.subject}\n${m.bodyText}`).join("\n\n---\n\n");
+    return callJSON(TONE_SYSTEM, user, toneProfileSchema);
   },
 };

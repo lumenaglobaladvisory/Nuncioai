@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
 import Badge from "./Badge";
+import Button from "./Button";
 
 export interface PlanActionView {
   id: string;
@@ -97,8 +99,8 @@ export default function PlanReviewPanel({ plan }: { plan: PlanView }) {
   const hasUndoableAction = plan.actions.some((a) => a.reversible && a.status === "executed");
 
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-start justify-between gap-3">
+    <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-neutral-900">{plan.summary}</p>
           <p className="mt-0.5 text-xs text-neutral-400">{plan.kind}</p>
@@ -111,7 +113,7 @@ export default function PlanReviewPanel({ plan }: { plan: PlanView }) {
 
       <ul className="mb-3 space-y-1.5">
         {plan.actions.map((action) => (
-          <li key={action.id} className="flex items-center justify-between gap-2 rounded-md bg-neutral-50 px-2.5 py-1.5 text-sm">
+          <li key={action.id} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-50 px-2.5 py-1.5 text-sm">
             <div className="flex items-center gap-2">
               {plan.status === "pending" && (
                 <input
@@ -151,42 +153,34 @@ export default function PlanReviewPanel({ plan }: { plan: PlanView }) {
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <button onClick={() => setShowJson((s) => !s)} className="text-xs text-neutral-400 hover:text-neutral-600">
-          {showJson ? "Hide" : "Show"} PLAN_JSON
+        <button
+          onClick={() => setShowJson((s) => !s)}
+          className="flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-600"
+        >
+          {showJson ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          PLAN_JSON
         </button>
         <div className="flex gap-2">
           {plan.status === "pending" && (
             <>
-              <button
-                onClick={reject}
-                disabled={busy}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-              >
+              <Button variant="secondary" size="sm" onClick={reject} disabled={busy}>
                 Reject
-              </button>
-              <button
-                onClick={approveAndRun}
-                disabled={busy}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
+              </Button>
+              <Button size="sm" onClick={approveAndRun} disabled={busy}>
                 Approve &amp; Run
-              </button>
+              </Button>
             </>
           )}
           {plan.status === "executed" && hasUndoableAction && (
-            <button
-              onClick={undoAll}
-              disabled={busy}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-            >
+            <Button variant="secondary" size="sm" onClick={undoAll} disabled={busy}>
               Undo all
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {showJson && (
-        <pre className="mt-3 overflow-x-auto rounded-md bg-neutral-900 p-3 text-xs text-neutral-100">
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100">
           {JSON.stringify(JSON.parse(plan.planJson), null, 2)}
         </pre>
       )}

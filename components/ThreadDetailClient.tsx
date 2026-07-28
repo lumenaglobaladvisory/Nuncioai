@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles, ListChecks } from "lucide-react";
 import type { Draft, EmailMessage, EmailThread } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
+import Avatar from "./Avatar";
 import Badge from "./Badge";
+import Button from "./Button";
 import PlanReviewPanel, { type PlanView } from "./PlanReviewPanel";
 
 type ThreadWithRelations = EmailThread & {
@@ -209,14 +212,17 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
           {thread.connectedAccount.email} ({thread.connectedAccount.provider})
         </p>
         <div className="mt-3 flex gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => quickAction("archive_emails", {}, `Archive "${thread.subject}"`)}
             disabled={busy || thread.isArchived}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
           >
             {thread.isArchived ? "Archived" : "Archive"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() =>
               quickAction(
                 "snooze_emails",
@@ -225,21 +231,21 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
               )
             }
             disabled={busy}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
           >
             Snooze 3 days
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-700">Summary</h2>
-          <button onClick={summarize} disabled={summarizing} className="text-xs text-blue-600 hover:underline disabled:opacity-50">
+          <Button variant="ghost" size="sm" onClick={summarize} disabled={summarizing}>
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
             {summarizing ? "Summarizing..." : thread.blufSummary ? "Regenerate" : "Generate summary"}
-          </button>
+          </Button>
         </div>
         {thread.blufSummary ? (
           <div className="space-y-2 text-sm text-neutral-700">
@@ -278,27 +284,34 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
         )}
       </section>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <h2 className="text-sm font-semibold text-neutral-700">Messages</h2>
         <div className="space-y-3">
           {thread.messages.map((m) => (
-            <div key={m.id} className="rounded-md border border-neutral-100 p-3">
-              <div className="mb-1 flex items-center justify-between text-xs text-neutral-500">
-                <span>
-                  {m.direction === "inbound" ? (m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail) : "You"}
-                </span>
-                <span>{new Date(m.sentAt).toLocaleString()}</span>
+            <div key={m.id} className="flex gap-3 rounded-lg border border-neutral-100 p-3">
+              <Avatar name={m.direction === "inbound" ? m.fromName ?? m.fromEmail : "You"} />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center justify-between text-xs text-neutral-500">
+                  <span>
+                    {m.direction === "inbound" ? (m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail) : "You"}
+                  </span>
+                  <span>{new Date(m.sentAt).toLocaleString()}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-sm text-neutral-800">{m.bodyText}</p>
               </div>
-              <p className="whitespace-pre-wrap text-sm text-neutral-800">{m.bodyText}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <h2 className="text-sm font-semibold text-neutral-700">Draft a reply</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={tone} onChange={(e) => setTone(e.target.value)} className="rounded-md border border-neutral-300 px-2 py-1 text-xs">
+          <select
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+            className="rounded-lg border border-neutral-300 px-2 py-1.5 text-xs"
+          >
             {TONES.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -309,46 +322,35 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Optional instructions (e.g. offer a 10% discount)"
-            className="min-w-[16rem] flex-1 rounded-md border border-neutral-300 px-2 py-1 text-xs"
+            className="min-w-[16rem] flex-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-xs"
           />
-          <button
-            onClick={generateDraft}
-            disabled={generatingDraft}
-            className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
+          <Button size="sm" onClick={generateDraft} disabled={generatingDraft}>
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
             {generatingDraft ? "Generating..." : "Generate AI draft"}
-          </button>
+          </Button>
         </div>
 
         {draft && (
-          <div className="space-y-2 rounded-md border border-neutral-200 p-3">
+          <div className="space-y-2 rounded-lg border border-neutral-200 p-3">
             <input
               value={draft.subject}
               onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
-              className="w-full rounded-md border border-neutral-300 px-2 py-1 text-sm font-medium"
+              className="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm font-medium"
             />
             <textarea
               value={draft.bodyText}
               onChange={(e) => setDraft({ ...draft, bodyText: e.target.value })}
               rows={8}
-              className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+              className="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
             />
             <p className="text-xs text-neutral-400">To: {inboundSenders.join(", ") || "(no recipient detected)"}</p>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => proposeDraft("save_draft")}
-                disabled={busy}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
-              >
+              <Button variant="secondary" size="sm" onClick={() => proposeDraft("save_draft")} disabled={busy}>
                 Propose: Save as Draft
-              </button>
-              <button
-                onClick={() => proposeDraft("send_email")}
-                disabled={busy}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
+              </Button>
+              <Button size="sm" onClick={() => proposeDraft("send_email")} disabled={busy}>
                 Propose: Send
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -367,12 +369,13 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
         )}
       </section>
 
-      <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-700">Tasks &amp; events</h2>
-          <button onClick={extract} disabled={extracting} className="text-xs text-blue-600 hover:underline disabled:opacity-50">
+          <Button variant="ghost" size="sm" onClick={extract} disabled={extracting}>
+            <ListChecks className="h-3.5 w-3.5" strokeWidth={2.25} />
             {extracting ? "Extracting..." : "Extract from thread"}
-          </button>
+          </Button>
         </div>
         {extraction && (
           <div className="space-y-3">
@@ -414,13 +417,9 @@ export default function ThreadDetailClient({ thread, plans }: { thread: ThreadWi
               </label>
             ))}
             {(extraction.tasks.length > 0 || extraction.events.length > 0) && (
-              <button
-                onClick={addSelectedExtractions}
-                disabled={busy}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
+              <Button size="sm" onClick={addSelectedExtractions} disabled={busy}>
                 Propose: Add selected
-              </button>
+              </Button>
             )}
           </div>
         )}
