@@ -24,7 +24,11 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             "https://www.googleapis.com/auth/calendar.events",
           ].join(" "),
           access_type: "offline",
-          prompt: "consent",
+          // "consent" is required to get a refresh_token back from Google
+          // every time; "select_account" forces the account chooser instead
+          // of silently reusing whichever Google account is already signed
+          // in in the browser, so you can pick the right one.
+          prompt: "consent select_account",
         },
       },
     })
