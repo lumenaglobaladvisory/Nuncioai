@@ -6,9 +6,12 @@ import Link from "next/link";
 import { Inbox, RefreshCw } from "lucide-react";
 import type { EmailThread } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
+import type { WeeklyDigest as WeeklyDigestData, WeeklyImpact } from "@/lib/stats";
 import Badge from "./Badge";
 import Button from "./Button";
 import PlanReviewPanel, { type PlanView } from "./PlanReviewPanel";
+import ImpactBanner from "./ImpactBanner";
+import WeeklyDigest from "./WeeklyDigest";
 
 interface TodayThread extends EmailThread {
   reason: string;
@@ -25,11 +28,15 @@ export default function DashboardClient({
   pendingPlans,
   accountsCount,
   llmMode,
+  impact,
+  digest,
 }: {
   initialToday: TodayThread[];
   pendingPlans: PlanView[];
   accountsCount: number;
   llmMode: "stub" | "claude";
+  impact: WeeklyImpact;
+  digest: WeeklyDigestData;
 }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
@@ -77,6 +84,8 @@ export default function DashboardClient({
         </p>
       )}
 
+      <ImpactBanner impact={impact} />
+
       {pendingPlans.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-neutral-700">Awaiting your approval ({pendingPlans.length})</h2>
@@ -121,6 +130,8 @@ export default function DashboardClient({
           ))}
         </div>
       </section>
+
+      <WeeklyDigest digest={digest} />
     </div>
   );
 }
