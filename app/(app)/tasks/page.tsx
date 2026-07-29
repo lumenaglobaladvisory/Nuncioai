@@ -16,7 +16,7 @@ export default async function TasksPage() {
     prisma.calendarEvent.findMany({
       where: { userId: session.user.id },
       include: { thread: { select: { subject: true } } },
-      orderBy: { startTime: "asc" },
+      orderBy: { startTime: "desc" },
     }),
   ]);
 

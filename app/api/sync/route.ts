@@ -6,6 +6,7 @@ import { getLLMService, isStubMode } from "@/lib/llm";
 import { getTodayList } from "@/lib/triage";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { getPastMeetingAttendees, syncCalendarForAccount, threadHasStaleMeetingContext } from "@/lib/calendar-sync";
+import { getRecentlyRepliedToSenders, threadSenderRecentlyRepliedTo } from "@/lib/sender-engagement";
 
 // How many threads to pull per connected account per sync. Paginated at the
 // provider level (see lib/providers/gmail.ts, outlook.ts) so this can be
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
       }
     }
     const pastMeetingAttendees = await getPastMeetingAttendees(user.id);
+    const recentlyRepliedToSenders = await getRecentlyRepliedToSenders(user.id);
 
     for (const account of accounts) {
       const provider = getEmailProvider(account);
@@ -115,6 +117,26 @@ export async function POST(req: Request) {
           triage.priorityReasons = [
             ...triage.priorityReasons,
             "Downgraded: participants already met on a calendar event that has since ended.",
+          ];
+        }
+
+        // Automated reminder/compliance senders often split every follow-up
+        // into its own thread instead of replying in-thread, so a request
+        // already handled can still look "unanswered" one thread at a time.
+        // If the user has personally emailed this sender at all recently,
+        // treat other outstanding threads from them as already-in-progress,
+        // not a fresh same-day ask.
+        const lastInbound = [...pt.messages].reverse().find((m) => m.direction === "inbound");
+        if (
+          triage.category === "must_respond_today" &&
+          lastInbound &&
+          threadSenderRecentlyRepliedTo(lastInbound.fromEmail, recentlyRepliedToSenders)
+        ) {
+          triage.category = "review_this_week";
+          triage.priority = "medium";
+          triage.priorityReasons = [
+            ...triage.priorityReasons,
+            "Downgraded: you've already emailed this sender recently.",
           ];
         }
 
