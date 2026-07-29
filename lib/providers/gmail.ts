@@ -7,6 +7,8 @@ import type {
   EmailProvider,
   FetchEmailsFilters,
   LabelChangeResult,
+  ListEventsFilters,
+  ProviderCalendarEvent,
   ProviderMessage,
   ProviderThread,
   SaveDraftPayload,
@@ -259,5 +261,27 @@ export class GoogleCalendarProvider implements CalendarProvider {
 
   async deleteEvent(providerEventId: string): Promise<void> {
     await this.calendar.events.delete({ calendarId: "primary", eventId: providerEventId });
+  }
+
+  async listEvents(filters: ListEventsFilters): Promise<ProviderCalendarEvent[]> {
+    const { data } = await this.calendar.events.list({
+      calendarId: "primary",
+      timeMin: filters.timeMin,
+      timeMax: filters.timeMax,
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 250,
+    });
+    return (data.items ?? [])
+      .filter((e): e is typeof e & { id: string } => Boolean(e.id && e.start && e.end))
+      .map((e) => ({
+        providerEventId: e.id,
+        title: e.summary ?? "(no title)",
+        description: e.description ?? undefined,
+        startTime: e.start!.dateTime ?? e.start!.date ?? new Date().toISOString(),
+        endTime: e.end!.dateTime ?? e.end!.date ?? new Date().toISOString(),
+        location: e.location ?? undefined,
+        attendees: e.attendees?.map((a) => a.email).filter((email): email is string => Boolean(email)),
+      }));
   }
 }

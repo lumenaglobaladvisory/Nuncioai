@@ -5,6 +5,7 @@ import { getEmailProvider } from "@/lib/providers";
 import { getLLMService, isStubMode } from "@/lib/llm";
 import { getTodayList } from "@/lib/triage";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { getPastMeetingAttendees, syncCalendarForAccount, threadHasStaleMeetingContext } from "@/lib/calendar-sync";
 
 // How many threads to pull per connected account per sync. Paginated at the
 // provider level (see lib/providers/gmail.ts, outlook.ts) so this can be
@@ -22,6 +23,17 @@ export async function POST(req: Request) {
     const llm = getLLMService();
     let threadsSynced = 0;
     let threadsClassified = 0;
+
+    // Calendar sync failing (e.g. Calendar API not enabled, missing scope)
+    // shouldn't take down email sync - it's a best-effort enrichment step.
+    for (const account of accounts) {
+      try {
+        await syncCalendarForAccount(account);
+      } catch (err) {
+        console.error(`Calendar sync failed for account ${account.id}:`, err);
+      }
+    }
+    const pastMeetingAttendees = await getPastMeetingAttendees(user.id);
 
     for (const account of accounts) {
       const provider = getEmailProvider(account);
@@ -88,6 +100,24 @@ export async function POST(req: Request) {
       const toClassify = upserted.filter((u) => u.needsClassification);
       await mapWithConcurrency(toClassify, CLASSIFY_CONCURRENCY, async ({ thread, pt }) => {
         const triage = await llm.classifyThread(pt, account.email);
+
+        // A thread whose participants already met with the user on a real,
+        // now-past calendar event is very likely stale - the meeting it was
+        // about has already happened, so treating it as urgent "respond
+        // today" is usually wrong even if the message text still reads that
+        // way (recurring automated reminders, pre-call notes, etc.).
+        if (
+          triage.category === "must_respond_today" &&
+          threadHasStaleMeetingContext(pt.participants.map((p) => p.email), pastMeetingAttendees)
+        ) {
+          triage.category = "review_this_week";
+          triage.priority = "medium";
+          triage.priorityReasons = [
+            ...triage.priorityReasons,
+            "Downgraded: participants already met on a calendar event that has since ended.",
+          ];
+        }
+
         await prisma.emailThread.update({
           where: { id: thread.id },
           data: {

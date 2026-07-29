@@ -28,7 +28,7 @@ export function getCalendarProvider(account: ConnectedAccount): CalendarProvider
       return new OutlookCalendarProvider({ accessToken: account.accessToken });
     case "mock":
     default:
-      return new MockCalendarProvider();
+      return new MockCalendarProvider(account.userId);
   }
 }
 

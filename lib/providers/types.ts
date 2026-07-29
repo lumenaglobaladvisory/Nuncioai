@@ -64,6 +64,21 @@ export interface CreateEventPayload {
   attendees?: string[];
 }
 
+export interface ProviderCalendarEvent {
+  providerEventId: string;
+  title: string;
+  description?: string;
+  startTime: string; // ISO
+  endTime: string; // ISO
+  location?: string;
+  attendees?: string[];
+}
+
+export interface ListEventsFilters {
+  timeMin: string; // ISO
+  timeMax: string; // ISO
+}
+
 export interface EmailProvider {
   readonly kind: "google" | "microsoft" | "mock";
 
@@ -85,4 +100,5 @@ export interface CalendarProvider {
   readonly kind: "google" | "microsoft" | "mock";
   createEvent(payload: CreateEventPayload): Promise<{ providerEventId: string }>;
   deleteEvent(providerEventId: string): Promise<void>;
+  listEvents(filters: ListEventsFilters): Promise<ProviderCalendarEvent[]>;
 }

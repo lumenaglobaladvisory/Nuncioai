@@ -6,6 +6,8 @@ import type {
   EmailProvider,
   FetchEmailsFilters,
   LabelChangeResult,
+  ListEventsFilters,
+  ProviderCalendarEvent,
   ProviderMessage,
   ProviderThread,
   SaveDraftPayload,
@@ -32,6 +34,16 @@ interface GraphMessage {
 interface GraphPage<T> {
   value: T[];
   "@odata.nextLink"?: string;
+}
+
+interface GraphEvent {
+  id: string;
+  subject: string;
+  bodyPreview: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
+  location?: { displayName?: string };
+  attendees?: { emailAddress: { address: string } }[];
 }
 
 export interface MicrosoftTokens {
@@ -274,5 +286,28 @@ export class OutlookCalendarProvider implements CalendarProvider {
 
   async deleteEvent(providerEventId: string): Promise<void> {
     await graphFetch(`/me/events/${providerEventId}`, this.tokens, { method: "DELETE" });
+  }
+
+  async listEvents(filters: ListEventsFilters): Promise<ProviderCalendarEvent[]> {
+    const params = new URLSearchParams({
+      startDateTime: filters.timeMin,
+      endDateTime: filters.timeMax,
+      $orderby: "start/dateTime",
+      $top: "250",
+    });
+    // calendarView (vs. /events) expands recurring events into individual
+    // instances within the range, matching Google's singleEvents=true.
+    const { value } = await graphFetch<{ value: GraphEvent[] }>(`/me/calendarView?${params.toString()}`, this.tokens, {
+      headers: { Prefer: 'outlook.timezone="UTC"' },
+    });
+    return value.map((e) => ({
+      providerEventId: e.id,
+      title: e.subject || "(no title)",
+      description: e.bodyPreview,
+      startTime: e.start.dateTime.endsWith("Z") ? e.start.dateTime : `${e.start.dateTime}Z`,
+      endTime: e.end.dateTime.endsWith("Z") ? e.end.dateTime : `${e.end.dateTime}Z`,
+      location: e.location?.displayName,
+      attendees: e.attendees?.map((a) => a.emailAddress.address).filter(Boolean),
+    }));
   }
 }

@@ -5,6 +5,8 @@ import type {
   EmailProvider,
   FetchEmailsFilters,
   LabelChangeResult,
+  ListEventsFilters,
+  ProviderCalendarEvent,
   ProviderMessage,
   ProviderThread,
   SaveDraftPayload,
@@ -182,6 +184,8 @@ export class MockEmailProvider implements EmailProvider {
 export class MockCalendarProvider implements CalendarProvider {
   readonly kind = "mock" as const;
 
+  constructor(private userId: string) {}
+
   async createEvent(payload: CreateEventPayload): Promise<{ providerEventId: string }> {
     void payload;
     return { providerEventId: `mock-event-${Date.now()}` };
@@ -189,5 +193,28 @@ export class MockCalendarProvider implements CalendarProvider {
 
   async deleteEvent(_providerEventId: string): Promise<void> {
     // no-op: nothing external to clean up for the mock provider
+  }
+
+  async listEvents(filters: ListEventsFilters): Promise<ProviderCalendarEvent[]> {
+    // No external calendar to read for the mock provider - reflect back
+    // whatever's already on the user's local calendar (events created by
+    // policies/plans), so the sync step and staleness checks that consume
+    // listEvents still have something realistic to work with in demo mode.
+    const events = await prisma.calendarEvent.findMany({
+      where: {
+        userId: this.userId,
+        status: "created",
+        startTime: { gte: new Date(filters.timeMin), lte: new Date(filters.timeMax) },
+      },
+    });
+    return events.map((e) => ({
+      providerEventId: e.providerEventId ?? e.id,
+      title: e.title,
+      description: e.description ?? undefined,
+      startTime: e.startTime.toISOString(),
+      endTime: e.endTime.toISOString(),
+      location: e.location ?? undefined,
+      attendees: e.attendees ? JSON.parse(e.attendees) : undefined,
+    }));
   }
 }
