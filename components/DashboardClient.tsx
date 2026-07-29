@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, RefreshCw, Sparkles } from "lucide-react";
+import { AlarmClock, CalendarCheck, Inbox, RefreshCw, Sparkles } from "lucide-react";
 import type { EmailThread } from "@prisma/client";
 import { apiFetch } from "@/lib/api-client";
 import type { WeeklyDigest as WeeklyDigestData, WeeklyImpact } from "@/lib/stats";
@@ -21,6 +21,26 @@ interface SyncResult {
   threadsSynced: number;
   threadsClassified: number;
   accountsSynced: number;
+}
+
+function ThreadCard({ thread, accent }: { thread: TodayThread; accent: "red" | "amber" }) {
+  const accentClass = accent === "red" ? "border-l-red-400" : "border-l-amber-400";
+  return (
+    <Link
+      href={`/threads/${thread.id}`}
+      className={`flex items-start justify-between gap-4 rounded-xl border border-l-4 ${accentClass} border-neutral-200 bg-white px-4 py-3.5 shadow-sm shadow-neutral-100 transition-shadow hover:shadow-md hover:shadow-neutral-200`}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium text-neutral-900">{thread.subject}</p>
+          {thread.priority && <Badge label={thread.priority} />}
+        </div>
+        <p className="mt-0.5 truncate text-xs text-neutral-500">{thread.snippet}</p>
+        <p className="mt-1 text-xs text-neutral-400">{thread.reason}</p>
+      </div>
+      <span className="shrink-0 text-xs text-neutral-400">{new Date(thread.lastMessageAt).toLocaleDateString()}</span>
+    </Link>
+  );
 }
 
 export default function DashboardClient({
@@ -60,6 +80,9 @@ export default function DashboardClient({
 
   const handleSync = () => runSync(false);
   const handleRetriage = () => runSync(true);
+
+  const mustRespondToday = initialToday.filter((t) => t.category === "must_respond_today");
+  const reviewThisWeek = initialToday.filter((t) => t.category !== "must_respond_today");
 
   return (
     <div className="space-y-8">
@@ -107,39 +130,42 @@ export default function DashboardClient({
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-neutral-700">Ordered by priority ({initialToday.length})</h2>
-        {initialToday.length === 0 && (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-12 text-center">
-            <Inbox className="h-8 w-8 text-neutral-300" strokeWidth={1.5} />
-            <p className="text-sm text-neutral-400">
-              Nothing needs your attention right now. Click &quot;Sync inbox&quot; to check for new mail.
-            </p>
-          </div>
-        )}
-        <div className="space-y-2">
-          {initialToday.map((thread) => (
-            <Link
-              key={thread.id}
-              href={`/threads/${thread.id}`}
-              className="flex items-start justify-between gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 shadow-sm shadow-neutral-100 transition-shadow hover:shadow-md hover:shadow-neutral-200"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-medium text-neutral-900">{thread.subject}</p>
-                  <Badge label={thread.category ?? "unclassified"} />
-                  {thread.priority && <Badge label={thread.priority} />}
-                </div>
-                <p className="mt-0.5 truncate text-xs text-neutral-500">{thread.snippet}</p>
-                <p className="mt-1 text-xs text-neutral-400">{thread.reason}</p>
-              </div>
-              <span className="shrink-0 text-xs text-neutral-400">
-                {new Date(thread.lastMessageAt).toLocaleDateString()}
-              </span>
-            </Link>
-          ))}
+      {initialToday.length === 0 && (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-12 text-center">
+          <Inbox className="h-8 w-8 text-neutral-300" strokeWidth={1.5} />
+          <p className="text-sm text-neutral-400">
+            Nothing needs your attention right now. Click &quot;Sync inbox&quot; to check for new mail.
+          </p>
         </div>
-      </section>
+      )}
+
+      {mustRespondToday.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-red-700">
+            <AlarmClock className="h-3.5 w-3.5" strokeWidth={2.25} />
+            Must respond today ({mustRespondToday.length})
+          </h2>
+          <div className="space-y-2">
+            {mustRespondToday.map((thread) => (
+              <ThreadCard key={thread.id} thread={thread} accent="red" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {reviewThisWeek.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+            <CalendarCheck className="h-3.5 w-3.5" strokeWidth={2.25} />
+            Review this week ({reviewThisWeek.length})
+          </h2>
+          <div className="space-y-2">
+            {reviewThisWeek.map((thread) => (
+              <ThreadCard key={thread.id} thread={thread} accent="amber" />
+            ))}
+          </div>
+        </section>
+      )}
 
       <WeeklyDigest digest={digest} />
     </div>

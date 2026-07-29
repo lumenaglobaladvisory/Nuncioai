@@ -23,6 +23,15 @@ const SENDER_NOISE_RE = /no-?reply|do-?not-?reply|notification|alerts?@|digest@|
 const BODY_NOISE_RE = /unsubscribe|view in browser|manage (your )?(email )?preferences|update your (email )?preferences/i;
 
 const URGENT_RE = /\burgent\b|\basap\b|\bdeadline\b|\beod\b|end of day|right away|by (today|tomorrow|tonight|end of week|eow)\b|time.?sensitive|immediately/i;
+// Automated reminder/compliance systems (government portals, vendor
+// certification trackers, etc.) commonly send each follow-up as a brand-new
+// thread instead of a reply, so a genuinely-already-handled request can
+// still look "unanswered" by direction/reply-chain alone. These systems
+// almost always hedge with boilerplate like "if you've already done this,
+// disregard" - that hedge is itself a strong signal the deadline shouldn't
+// be trusted at face value.
+const SELF_SERVICE_DISCLAIMER_RE =
+  /disregard this (message|notice|email|reminder)|if (you('| ha)ve )?already (submitted|completed|sent|done|responded|provided)|no longer applies to your situation|this is an automated (reminder|message|notice)/i;
 // Direct, specific asks - phrases a person uses when they actually want
 // something from the recipient, as opposed to a generic sentence containing "?".
 // "please [verb]" is deliberately a whitelist of actionable verbs, not any
@@ -98,7 +107,8 @@ export const stubService: LLMService = {
     }
 
     const requestedActions = requestedActionSentences(thread);
-    const isUrgent = URGENT_RE.test(last.subject) || URGENT_RE.test(last.bodyText);
+    const hasSelfServiceDisclaimer = SELF_SERVICE_DISCLAIMER_RE.test(last.bodyText);
+    const isUrgent = (URGENT_RE.test(last.subject) || URGENT_RE.test(last.bodyText)) && !hasSelfServiceDisclaimer;
     const priority = requestedActions.length > 0 ? "medium" : "low";
 
     if (isUrgent) {
