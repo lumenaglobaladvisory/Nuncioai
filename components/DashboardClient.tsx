@@ -139,32 +139,40 @@ export default function DashboardClient({
         </div>
       )}
 
-      {mustRespondToday.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-red-700">
-            <AlarmClock className="h-3.5 w-3.5" strokeWidth={2.25} />
-            Must respond today ({mustRespondToday.length})
-          </h2>
-          <div className="space-y-2">
-            {mustRespondToday.map((thread) => (
-              <ThreadCard key={thread.id} thread={thread} accent="red" />
-            ))}
-          </div>
-        </section>
-      )}
+      {(mustRespondToday.length > 0 || reviewThisWeek.length > 0) && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-red-700">
+              <AlarmClock className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Must respond today ({mustRespondToday.length})
+            </h2>
+            <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
+              {mustRespondToday.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-neutral-200 px-4 py-6 text-center text-xs text-neutral-400">
+                  Nothing urgent right now.
+                </p>
+              ) : (
+                mustRespondToday.map((thread) => <ThreadCard key={thread.id} thread={thread} accent="red" />)
+              )}
+            </div>
+          </section>
 
-      {reviewThisWeek.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
-            <CalendarCheck className="h-3.5 w-3.5" strokeWidth={2.25} />
-            Review this week ({reviewThisWeek.length})
-          </h2>
-          <div className="space-y-2">
-            {reviewThisWeek.map((thread) => (
-              <ThreadCard key={thread.id} thread={thread} accent="amber" />
-            ))}
-          </div>
-        </section>
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+              <CalendarCheck className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Review this week ({reviewThisWeek.length})
+            </h2>
+            <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
+              {reviewThisWeek.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-neutral-200 px-4 py-6 text-center text-xs text-neutral-400">
+                  Nothing to review this week.
+                </p>
+              ) : (
+                reviewThisWeek.map((thread) => <ThreadCard key={thread.id} thread={thread} accent="amber" />)
+              )}
+            </div>
+          </section>
+        </div>
       )}
 
       <WeeklyDigest digest={digest} />
