@@ -1,26 +1,29 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Archive } from "lucide-react";
 import type { DigestItem, WeeklyDigest as WeeklyDigestData } from "@/lib/stats";
+import CategorySelect from "./CategorySelect";
 
-function DigestRow({ item }: { item: DigestItem }) {
+function DigestRow({ item, onRecategorized }: { item: DigestItem; onRecategorized: () => void }) {
   return (
-    <Link
-      href={`/threads/${item.id}`}
-      className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm hover:bg-neutral-50"
-    >
-      <div className="min-w-0">
+    <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm hover:bg-neutral-50">
+      <Link href={`/threads/${item.id}`} className="min-w-0 flex-1">
         <p className="truncate text-neutral-800">{item.subject}</p>
         <p className="truncate text-xs text-neutral-400">{item.fromLabel}</p>
+      </Link>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className="text-xs text-neutral-400">{new Date(item.lastMessageAt).toLocaleDateString()}</span>
+        <CategorySelect threadId={item.id} category={item.category} onChanged={onRecategorized} />
       </div>
-      <span className="shrink-0 text-xs text-neutral-400">{new Date(item.lastMessageAt).toLocaleDateString()}</span>
-    </Link>
+    </div>
   );
 }
 
 export default function WeeklyDigest({ digest }: { digest: WeeklyDigestData }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const total = digest.noise.length + digest.fyi.length;
   if (total === 0) return null;
@@ -38,7 +41,7 @@ export default function WeeklyDigest({ digest }: { digest: WeeklyDigestData }) {
           <div>
             <p className="px-2.5 pb-1 text-xs font-medium text-neutral-400">Noise ({digest.noise.length})</p>
             {digest.noise.map((item) => (
-              <DigestRow key={item.id} item={item} />
+              <DigestRow key={item.id} item={item} onRecategorized={() => router.refresh()} />
             ))}
           </div>
         )}
@@ -46,7 +49,7 @@ export default function WeeklyDigest({ digest }: { digest: WeeklyDigestData }) {
           <div>
             <p className="px-2.5 pb-1 text-xs font-medium text-neutral-400">FYI ({digest.fyi.length})</p>
             {digest.fyi.map((item) => (
-              <DigestRow key={item.id} item={item} />
+              <DigestRow key={item.id} item={item} onRecategorized={() => router.refresh()} />
             ))}
           </div>
         )}

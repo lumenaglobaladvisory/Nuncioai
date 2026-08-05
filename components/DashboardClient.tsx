@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api-client";
 import type { WeeklyDigest as WeeklyDigestData, WeeklyImpact } from "@/lib/stats";
 import Badge from "./Badge";
 import Button from "./Button";
+import CategorySelect from "./CategorySelect";
 import PlanReviewPanel, { type PlanView } from "./PlanReviewPanel";
 import ImpactBanner from "./ImpactBanner";
 import WeeklyDigest from "./WeeklyDigest";
@@ -23,23 +24,33 @@ interface SyncResult {
   accountsSynced: number;
 }
 
-function ThreadCard({ thread, accent }: { thread: TodayThread; accent: "red" | "amber" }) {
+function ThreadCard({
+  thread,
+  accent,
+  onRecategorized,
+}: {
+  thread: TodayThread;
+  accent: "red" | "amber";
+  onRecategorized: () => void;
+}) {
   const accentClass = accent === "red" ? "border-l-red-400" : "border-l-amber-400";
   return (
-    <Link
-      href={`/threads/${thread.id}`}
+    <div
       className={`flex items-start justify-between gap-4 rounded-xl border border-l-4 ${accentClass} border-neutral-200 bg-white px-4 py-3.5 shadow-sm shadow-neutral-100 transition-shadow hover:shadow-md hover:shadow-neutral-200`}
     >
-      <div className="min-w-0">
+      <Link href={`/threads/${thread.id}`} className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-neutral-900">{thread.subject}</p>
           {thread.priority && <Badge label={thread.priority} />}
         </div>
         <p className="mt-0.5 truncate text-xs text-neutral-500">{thread.snippet}</p>
         <p className="mt-1 text-xs text-neutral-400">{thread.reason}</p>
+      </Link>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span className="text-xs text-neutral-400">{new Date(thread.lastMessageAt).toLocaleDateString()}</span>
+        <CategorySelect threadId={thread.id} category={thread.category} onChanged={onRecategorized} />
       </div>
-      <span className="shrink-0 text-xs text-neutral-400">{new Date(thread.lastMessageAt).toLocaleDateString()}</span>
-    </Link>
+    </div>
   );
 }
 
@@ -152,7 +163,9 @@ export default function DashboardClient({
                   Nothing urgent right now.
                 </p>
               ) : (
-                mustRespondToday.map((thread) => <ThreadCard key={thread.id} thread={thread} accent="red" />)
+                mustRespondToday.map((thread) => (
+                  <ThreadCard key={thread.id} thread={thread} accent="red" onRecategorized={() => router.refresh()} />
+                ))
               )}
             </div>
           </section>
@@ -168,7 +181,9 @@ export default function DashboardClient({
                   Nothing to review this week.
                 </p>
               ) : (
-                reviewThisWeek.map((thread) => <ThreadCard key={thread.id} thread={thread} accent="amber" />)
+                reviewThisWeek.map((thread) => (
+                  <ThreadCard key={thread.id} thread={thread} accent="amber" onRecategorized={() => router.refresh()} />
+                ))
               )}
             </div>
           </section>

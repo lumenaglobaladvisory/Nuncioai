@@ -60,6 +60,7 @@ export interface DigestItem {
   fromLabel: string;
   lastMessageAt: Date;
   isArchived: boolean;
+  category: string | null;
 }
 
 export interface WeeklyDigest {
@@ -74,6 +75,7 @@ function toDigestItem(thread: {
   participants: string;
   lastMessageAt: Date;
   isArchived: boolean;
+  category: string | null;
 }): DigestItem {
   let fromLabel = "";
   try {
@@ -89,6 +91,7 @@ function toDigestItem(thread: {
     fromLabel,
     lastMessageAt: thread.lastMessageAt,
     isArchived: thread.isArchived,
+    category: thread.category,
   };
 }
 

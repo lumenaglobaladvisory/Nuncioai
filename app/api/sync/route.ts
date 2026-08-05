@@ -7,6 +7,7 @@ import { getTodayList } from "@/lib/triage";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { getPastMeetingAttendees, syncCalendarForAccount, threadHasStaleMeetingContext } from "@/lib/calendar-sync";
 import { getRecentlyRepliedToSenders, threadSenderRecentlyRepliedTo } from "@/lib/sender-engagement";
+import { getSenderCategoryOverrides } from "@/lib/category-overrides";
 
 // How many threads to pull per connected account per sync. Paginated at the
 // provider level (see lib/providers/gmail.ts, outlook.ts) so this can be
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
     }
     const pastMeetingAttendees = await getPastMeetingAttendees(user.id);
     const recentlyRepliedToSenders = await getRecentlyRepliedToSenders(user.id);
+    const senderCategoryOverrides = await getSenderCategoryOverrides(user.id);
 
     for (const account of accounts) {
       const provider = getEmailProvider(account);
@@ -53,7 +55,7 @@ export async function POST(req: Request) {
         // thread's existing classification.
         const existing = await prisma.emailThread.findUnique({
           where,
-          select: { category: true, lastMessageAt: true },
+          select: { category: true, lastMessageAt: true, categoryLocked: true },
         });
 
         const thread = await prisma.emailThread.upsert({
@@ -94,7 +96,10 @@ export async function POST(req: Request) {
         });
 
         const hasNewActivity = !existing || new Date(pt.lastMessageAt).getTime() > existing.lastMessageAt.getTime();
-        const needsClassification = force || !existing?.category || hasNewActivity;
+        // A manually-relabeled thread stays exactly how the user put it,
+        // permanently - re-triage must never second-guess an explicit
+        // correction, even with force=true.
+        const needsClassification = !existing?.categoryLocked && (force || !existing?.category || hasNewActivity);
         return { thread, pt, needsClassification };
       });
       threadsSynced += upserted.length;
@@ -138,6 +143,17 @@ export async function POST(req: Request) {
             ...triage.priorityReasons,
             "Downgraded: you've already emailed this sender recently.",
           ];
+        }
+
+        // Highest-priority signal of all: the user has previously corrected
+        // mail from this exact sender by hand (see /api/threads/[id]/
+        // recategorize). That explicit judgment always wins over anything
+        // the model or the heuristics above inferred.
+        const override = lastInbound && senderCategoryOverrides.get(lastInbound.fromEmail.toLowerCase());
+        if (override && override !== triage.category) {
+          triage.category = override;
+          triage.priority = override === "must_respond_today" || override === "review_this_week" ? triage.priority ?? "medium" : null;
+          triage.priorityReasons = [`You've previously categorized mail from this sender as "${override.replace(/_/g, " ")}".`];
         }
 
         await prisma.emailThread.update({

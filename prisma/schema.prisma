@@ -104,7 +104,8 @@ model EmailThread {
   snippet            String?
   lastMessageAt      DateTime
 
-  category         String? // must_respond | needs_review | low_value | notification | newsletter | reference
+  category         String? // must_respond_today | review_this_week | fyi | noise
+  categoryLocked   Boolean   @default(false) // true once the user manually relabels - sync never overwrites it again
   priority         String? // high | medium | low
   priorityReasons  String? // JSON string[]
   deadline         DateTime?
